@@ -7,11 +7,12 @@ API unica:
     await bus.publish(events.TRUCK_ARRIVED, {...})
 """
 import asyncio
+import inspect
 import json
 import logging
 import time
 
-from . import db
+from . import db, events
 from .config import RABBITMQ_URL
 from .state import r as redis_client
 
@@ -27,8 +28,8 @@ def on(event_type):
     return deco
 
 
-async def publish(event_type, payload):
-    msg = {"type": event_type, "payload": payload, "ts": time.time()}
+async def publish(event_type, payload, event_id=None, ts=None):
+    msg = events.envelope(event_type, payload, event_id, ts)
     db.log_event(payload.get("trip_id"), event_type, payload)
     log.info("publish %s %s", event_type, payload.get("trip_id"))
     if RABBITMQ_URL:
@@ -40,7 +41,10 @@ async def publish(event_type, payload):
 async def _dispatch(msg):
     for fn in _handlers.get(msg["type"], []):
         try:
-            await fn(msg["payload"])
+            if len(inspect.signature(fn).parameters) >= 2:
+                await fn(msg["payload"], msg)
+            else:  # compatibilidad con handlers simples del prototipo
+                await fn(msg["payload"])
         except Exception:
             log.exception("handler %s fallo en %s", fn.__name__, msg["type"])
 

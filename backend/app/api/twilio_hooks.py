@@ -84,5 +84,7 @@ async def status(call_id: str, request: Request):
     """
     form = await request.form()
     dur = float(form.get("CallDuration") or 0) or None
-    await caller.finish(call_id, dur)
+    twilio_status = str(form.get("CallStatus") or "completed").lower()
+    status_map = {"completed": "done", "failed": "failed", "no-answer": "no_answer", "busy": "busy"}
+    await caller.finish(call_id, dur, status_map.get(twilio_status, "failed"))
     return {"ok": True}

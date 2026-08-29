@@ -54,6 +54,26 @@ FALLBACK = {"reply": "Perfecto, gracias. Cualquier cosa te vuelvo a llamar.", "d
             "voice": {"stress": 0.0, "fatigue": 0.0, "clarity": 0.0, "notes": "sin analisis"}}
 
 
+def _valid_response(value):
+    if not isinstance(value, dict) or not isinstance(value.get("reply"), str):
+        return None
+    outcome = value.get("outcome")
+    voice = value.get("voice")
+    if not isinstance(outcome, dict) or not isinstance(voice, dict):
+        return None
+    if not isinstance(value.get("done"), bool):
+        return None
+    for key in ("stress", "fatigue", "clarity"):
+        if not isinstance(voice.get(key), (int, float)):
+            return None
+    if outcome.get("available") not in (True, False, None) or outcome.get("needs_human") not in (True, False):
+        return None
+    return {"reply": value["reply"][:1000], "done": value["done"],
+            "outcome": {"available": outcome.get("available"), "eta_min": outcome.get("eta_min"),
+                        "problem": outcome.get("problem"), "needs_human": outcome["needs_human"]},
+            "voice": {**voice, **{key: max(0.0, min(1.0, float(voice[key]))) for key in ("stress", "fatigue", "clarity")}}}
+
+
 def opener(reason, ctx):
     return OPENERS[reason].format(**ctx)
 
@@ -71,7 +91,8 @@ async def respond(reason, history, ctx):
             response_format={"type": "json_object"}, temperature=0.3, max_tokens=300,
         )
         u = res.usage
-        return json.loads(res.choices[0].message.content), (u.prompt_tokens, u.completion_tokens)
+        parsed = _valid_response(json.loads(res.choices[0].message.content))
+        return (parsed or FALLBACK), (u.prompt_tokens, u.completion_tokens)
     except Exception:
         log.exception("brain fallo")
         return FALLBACK, (0, 0)

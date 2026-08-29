@@ -62,12 +62,12 @@ backend ni sus contratos estan terminados. Hay que validar y adaptar cada pieza:
 
 | Componente | Archivo | Estado |
 |---|---|---|
-| Decision evento -> llamada | `app/agent/worker.py` | prototipo a validar |
-| Twilio y simulacion | `app/agent/caller.py` | prototipo; Twilio real sin validar |
-| Conversacion OpenAI | `app/agent/brain.py` | prototipo a validar |
-| Bus Redis/RabbitMQ | `app/bus.py` | prototipo a validar |
+| Decision evento -> llamada | `app/agent/worker.py` | implementado con deduplicacion por `event_id` |
+| Twilio y simulacion | `app/agent/caller.py` | implementado; Twilio real sin validar |
+| Conversacion OpenAI | `app/agent/brain.py` | implementado con validacion y fallback |
+| Bus Redis/RabbitMQ | `app/bus.py` | implementado con envelope versionado |
 | Contrato con backend | bus de eventos | acordar primero |
-| Reporte operacional completo | `app/agent/report.py` | pendiente |
+| Reporte operacional completo | `app/agent/report.py` | implementado con triage determinista |
 | Persistencia y UI | trabajo de otros miembros | en paralelo |
 
 ## Desarrollo local

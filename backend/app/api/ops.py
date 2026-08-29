@@ -164,7 +164,16 @@ async def port_ready(trip_id: str):
     Hoy es un boton manual. La integracion real con el sistema del puerto esta
     pendiente.
     """
-    await bus.publish(events.PORT_READY, {"trip_id": trip_id})
+    trip = db.one("SELECT * FROM trips WHERE id=?", (trip_id,))
+    driver = db.one("SELECT * FROM drivers WHERE id=?", (trip["driver_id"],)) if trip else None
+    if not trip or not driver:
+        return {"ok": False, "error": "viaje no encontrado"}
+    await bus.publish(events.PORT_READY, {
+        "trip_id": trip_id, "worker_id": driver["id"], "worker_name": driver["name"],
+        "worker_phone": driver["phone"], "lat": trip["port_lat"], "lon": trip["port_lon"],
+        "location_label": trip["port_name"], "detail": "carga habilitada", "container": trip["container"],
+        "port_name": trip["port_name"],
+    })
     return {"ok": True}
 
 
