@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "event_id": "evt_stopped_001",
+  "event_id": "evt_2f60d8ba59c1",
   "type": "truck.stopped",
   "payload": {
-    "trip_id": "op_123",
-    "worker_id": "driver_45",
-    "worker_name": "Carlos",
+    "trip_id": "311abca5",
+    "worker_id": "driver_01",
+    "worker_name": "Carlos Gimenez",
     "worker_phone": "+5491100000000",
-    "lat": -34.6037,
-    "lon": -58.3816,
-    "location_label": "RN9 km 72",
+    "lat": -34.158,
+    "lon": -59.027,
+    "location_label": "Ruta Nacional 9, Campana, Provincia de Buenos Aires, Argentina",
     "detail": "parada no planificada",
     "container": "MSCU-4471820",
     "seconds": 420

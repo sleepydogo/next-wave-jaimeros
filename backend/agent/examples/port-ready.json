@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "event_id": "evt_ready_001",
+  "event_id": "evt_b93f0a17c4e2",
   "type": "port.ready",
   "payload": {
-    "trip_id": "op_123",
-    "worker_id": "driver_45",
-    "worker_name": "Carlos",
+    "trip_id": "311abca5",
+    "worker_id": "driver_01",
+    "worker_name": "Carlos Gimenez",
     "worker_phone": "+5491100000000",
     "lat": -34.5745,
     "lon": -58.366,
     "location_label": "Puerto Buenos Aires - Terminal 4",
-    "detail": "carga habilitada en puerta 3",
+    "detail": "carga habilitada",
     "container": "MSCU-4471820",
     "port_name": "Puerto Buenos Aires - Terminal 4"
   },

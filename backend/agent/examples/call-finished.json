@@ -1,23 +1,23 @@
 {
   "schema_version": 1,
-  "event_id": "evt_call_finished_001",
+  "event_id": "evt_d5a20b73e918",
   "type": "call.finished",
   "payload": {
-    "trip_id": "op_123",
-    "call_id": "call_789",
-    "source_event_id": "evt_stopped_001",
+    "trip_id": "311abca5",
+    "call_id": "05c55846af35",
+    "source_event_id": "evt_2f60d8ba59c1",
     "reason": "emergency",
     "report": {
-      "id": "report_abc123",
-      "operation_id": "op_123",
-      "worker_id": "driver_45",
-      "call_id": "call_789",
+      "id": "report_5e1c8f04",
+      "operation_id": "311abca5",
+      "worker_id": "driver_01",
+      "call_id": "05c55846af35",
       "event_type": "truck.stopped",
       "what_happened": "Camion detenido fuera de una parada planificada",
       "where": {
-        "lat": -34.6037,
-        "lon": -58.3816,
-        "label": "RN9 km 72"
+        "lat": -34.158,
+        "lon": -59.027,
+        "label": "Ruta Nacional 9, Campana, Provincia de Buenos Aires, Argentina"
       },
       "triage": {
         "level": "high",

@@ -24,7 +24,11 @@ def current_trip(driver_id: str):
     Devuelve el ultimo viaje que no este `cerrado` y sus ultimas 5 llamadas.
     Si el conductor no tiene viaje activo devuelve `{"trip": null}`.
 
-    En la demo el `driver_id` es `d1`.
+    En la demo el `driver_id` es `driver_01`.
+
+    Los IDs tienen que cumplir el pattern del contrato de eventos
+    (`^[A-Za-z0-9][A-Za-z0-9._:-]{5,127}$`, minimo 6 caracteres): el agente
+    valida el payload y descarta lo que no matchee.
     """
     trip = db.one(
         "SELECT * FROM trips WHERE driver_id=? AND status!='cerrado' ORDER BY created_at DESC LIMIT 1",

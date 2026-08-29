@@ -1,5 +1,8 @@
 """Bus de eventos. RabbitMQ si hay RABBITMQ_URL, si no Redis pub/sub.
 
+El envelope sigue el contrato de `backend/agent/EVENTS.md`:
+    {schema_version, event_id, type, payload, ts}
+
 API unica:
     @bus.on(events.TRUCK_ARRIVED)
     async def handler(payload): ...
@@ -10,6 +13,7 @@ import asyncio
 import json
 import logging
 import time
+import uuid
 
 from . import db
 from .config import RABBITMQ_URL
@@ -17,7 +21,16 @@ from .state import r as redis_client
 
 log = logging.getLogger("bus")
 CHANNEL = "nextwave"
+SCHEMA_VERSION = 1
 _handlers: dict[str, list] = {}
+
+
+def new_event_id():
+    """ID unico del evento. Un retry conserva el mismo, un hecho nuevo usa otro.
+
+    El schema exige `^[A-Za-z0-9][A-Za-z0-9._:-]{5,127}$` (minimo 6 caracteres).
+    """
+    return f"evt_{uuid.uuid4().hex[:12]}"
 
 
 def on(event_type):
@@ -27,17 +40,25 @@ def on(event_type):
     return deco
 
 
-async def publish(event_type, payload):
-    msg = {"type": event_type, "payload": payload, "ts": time.time()}
+async def publish(event_type, payload, event_id=None):
+    """Publica un evento. `event_id` se pasa solo para reintentar el mismo hecho."""
+    msg = {"schema_version": SCHEMA_VERSION, "event_id": event_id or new_event_id(),
+           "type": event_type, "payload": payload, "ts": time.time()}
     db.log_event(payload.get("trip_id"), event_type, payload)
-    log.info("publish %s %s", event_type, payload.get("trip_id"))
+    log.info("publish %s %s %s", event_type, msg["event_id"], payload.get("trip_id"))
     if RABBITMQ_URL:
         await _amqp_publish(msg)
     else:
         await redis_client.publish(CHANNEL, json.dumps(msg))
+    return msg["event_id"]
 
 
 async def _dispatch(msg):
+    # el contrato pide rechazar versiones desconocidas y loguear el event_id
+    if msg.get("schema_version") != SCHEMA_VERSION:
+        log.warning("descarto evento %s: schema_version %s desconocida",
+                    msg.get("event_id"), msg.get("schema_version"))
+        return
     for fn in _handlers.get(msg["type"], []):
         try:
             await fn(msg["payload"])
