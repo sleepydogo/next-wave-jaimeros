@@ -1,8 +1,16 @@
 # docs
 
-Vacío todavía salvo este índice.
+## Dónde está la documentación
 
-Documentos pendientes:
+- **API**: Swagger en <http://localhost:8000/docs> con el backend corriendo.
+  Los 18 endpoints, agrupados por audiencia (`driver`, `ops`, `twilio`), cada
+  uno explicando qué evento dispara y qué devuelve. La portada tiene el
+  recorrido de prueba paso a paso.
+- **Backend**: [`backend/README.md`](../backend/README.md) — el flujo completo,
+  los módulos y qué estado vive en Redis vs. SQLite.
+- **Estilo de código**: [`backend/CODESTYLE.md`](../backend/CODESTYLE.md).
+
+## Documentos pendientes
 
 - **`COSTS.md`** — el esquema de costos detallado que pide el challenge.
   El modelo ya está implementado en `backend/app/costs.py` y el endpoint

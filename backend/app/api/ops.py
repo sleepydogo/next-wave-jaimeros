@@ -21,8 +21,14 @@ def _json(rows, *fields):
     return rows
 
 
-@router.get("/trips")
+@router.get("/trips", summary="Lista de viajes")
 def trips():
+    """Todos los viajes con su conductor y la ultima posicion conocida.
+
+    Es el endpoint del mapa / tabla principal del dashboard.
+
+    `last_ping` puede ser `null` si el viaje todavia no recibio ninguna posicion.
+    """
     rows = db.q("SELECT t.*, d.name AS driver_name, d.phone FROM trips t "
                 "JOIN drivers d ON d.id=t.driver_id ORDER BY t.created_at DESC")
     for t in rows:
@@ -32,8 +38,18 @@ def trips():
     return rows
 
 
-@router.get("/trips/{trip_id}")
+@router.get("/trips/{trip_id}", summary="Detalle de un viaje")
 def trip_detail(trip_id: str):
+    """Todo lo que paso en un viaje: `{trip, pings, events, calls}`.
+
+    - **pings**: ultimos 100, mas nuevo primero
+    - **events**: ultimos 50. Es el timeline del viaje
+    - **calls**: todas, con transcripcion, outcome y metricas de voz
+
+    OJO — inconsistencia conocida: en `calls` los campos `outcome` y `voice`
+    vienen parseados como objetos, pero en `events` el campo `payload` viene
+    como **string JSON** y hay que hacerle `JSON.parse` en el front.
+    """
     return {
         "trip": db.one("SELECT * FROM trips WHERE id=?", (trip_id,)),
         "pings": db.q("SELECT * FROM pings WHERE trip_id=? ORDER BY ts DESC LIMIT 100", (trip_id,)),
@@ -43,45 +59,131 @@ def trip_detail(trip_id: str):
     }
 
 
-@router.get("/calls")
+@router.get("/calls", summary="Llamadas con transcripcion y metricas de voz")
 def calls():
+    """Ultimas 50 llamadas, mas nueva primero.
+
+    - **reason**: `arrival_check` | `load_authorized` | `emergency`
+    - **status**: `ringing` | `done` | `failed`
+    - **transcript**: la conversacion completa (AGENTE / CONDUCTOR)
+    - **outcome**: `{available, eta_min, problem, needs_human}`
+    - **voice**: `{stress, fatigue, clarity, notes, asr_confidence, latency_s,
+      speech_rate_wps, risk}`
+
+    `voice.risk` (0 a 1) es el que usa el dashboard para marcar conductores en
+    rojo. Un riesgo >= 0.6 ya genero una alerta por su cuenta.
+
+    ```json
+    {
+      "id": "05c55846af35", "reason": "arrival_check", "status": "done",
+      "transcript": "AGENTE: Hola Carlos...\\nCONDUCTOR: Si, ya llegue...",
+      "outcome": {"available": true, "eta_min": 10, "problem": null,
+                  "needs_human": false},
+      "voice": {"stress": 0.2, "fatigue": 0.1, "risk": 0.2,
+                "asr_confidence": 0.88, "latency_s": 1.8},
+      "duration_s": 42.0, "cost_usd": 0.2
+    }
+    ```
+    """
     return _json(db.q("SELECT * FROM calls ORDER BY ts DESC LIMIT 50"), "outcome", "voice")
 
 
-@router.get("/alerts")
+@router.get("/alerts", summary="Alertas")
 def alerts():
+    """Ultimas 50 alertas.
+
+    - **severity**: `alta` | `media` | `baja`
+    - **channels**: por donde salio, separado por coma
+
+    El ruteo por severidad lo decide el dispatcher:
+    alta -> email, whatsapp, dashboard / media -> email, dashboard /
+    baja -> dashboard.
+    """
     return db.q("SELECT * FROM alerts ORDER BY ts DESC LIMIT 50")
 
 
-@router.get("/thresholds")
+@router.get("/thresholds", summary="Thresholds actuales del detector")
 def thresholds():
+    """Los 5 thresholds que usa el detector, con quien los toco por ultima vez.
+
+    El campo `reason` dice el origen: `default`, `manual`, o la explicacion que
+    dejo el cron agent al ajustarlos.
+
+    | key | default | que controla |
+    |---|---|---|
+    | `geofence_radius_m` | 800 | radio del puerto para considerar que llego |
+    | `stop_speed_kmh` | 3 | debajo de esto se considera detenido |
+    | `stop_min_seconds` | 120 | cuanto tiempo detenido para alertar |
+    | `slowdown_drop_pct` | 0.6 | caida de velocidad considerada anormal |
+    | `slowdown_min_kmh` | 40 | solo aplica si venia mas rapido que esto |
+    """
     return db.q("SELECT * FROM thresholds ORDER BY key")
 
 
-@router.post("/thresholds/tune")
+@router.post("/thresholds/tune", summary="Correr el cron agent a mano")
 async def tune():
-    """Dispara el cron agent a mano (para mostrarlo en la demo)."""
+    """Dispara el agente que ajusta los thresholds, que si no corre solo cada 5 min.
+
+    Mira las llamadas de emergencia ya cerradas: si el conductor dijo que no
+    pasaba nada (`outcome.problem == null`) fue un **falso positivo**. Muchos
+    falsos positivos -> afloja los thresholds. Ninguno -> puede apretarlos para
+    detectar antes.
+
+    Sin `OPENAI_API_KEY` cae a una heuristica simple. Nunca escribe un valor
+    fuera de `BOUNDS`.
+
+    Devuelve `{"applied": {...}}` con lo que efectivamente cambio. Vacio si
+    todavia no habia feedback para aprender.
+    """
     return {"applied": await threshold_agent.run_once()}
 
 
-@router.post("/thresholds/{key}")
+@router.post("/thresholds/{key}", summary="Setter manual de un threshold")
 def set_threshold(key: str, value: float):
-    """Setter manual. Lo usa el simulador para comprimir los tiempos en la demo.
-    Declarado despues de /tune a proposito: si no, {key} se comeria esa ruta."""
+    """Pisa un threshold a mano. Pensado para comprimir los tiempos en la demo.
+
+    Ejemplo tipico: `stop_min_seconds=8` para poder mostrar una parada en ruta
+    sin esperar los 2 minutos reales.
+
+    OJO de implementacion: esta ruta esta declarada **despues** de
+    `/thresholds/tune` a proposito. Si no, el path param `{key}` se comeria esa
+    ruta fija.
+    """
     rules.set_th(key, value, "manual")
     return {"ok": True, "key": key, "value": value}
 
 
-@router.post("/trips/{trip_id}/port-ready")
+@router.post("/trips/{trip_id}/port-ready", summary="El puerto habilita la carga")
 async def port_ready(trip_id: str):
-    """El monitorista (o el sistema del puerto) habilita la carga."""
+    """El monitorista (o el sistema del puerto) habilita la carga del contenedor.
+
+    Publica `port.ready` en el bus: el viaje pasa a `habilitado` y el agente
+    llama al conductor con `reason=load_authorized` para avisarle que puede
+    pasar a cargar.
+
+    Hoy es un boton manual. La integracion real con el sistema del puerto esta
+    pendiente.
+    """
     await bus.publish(events.PORT_READY, {"trip_id": trip_id})
     return {"ok": True}
 
 
-@router.get("/metrics")
+@router.get("/metrics", summary="KPIs y contador de costos en vivo")
 def metrics():
-    """KPIs + el contador de costos que se muestra en vivo."""
+    """El contador de costos de la demo: agente vs. monitorista humano.
+
+    La unidad de comparacion es el **evento gestionado** (una llegada, una
+    habilitacion, una emergencia), no el minuto de llamada: el monitorista no
+    gasta el tiempo hablando, lo gasta mirando pantallas y reintentando.
+
+    - `costo_agente_por_evento`: **medido de verdad** (Twilio + ASR + tokens de
+      cada llamada que ocurrio), no estimado
+    - `costo_humano_por_evento`: 6 min de monitorista a USD 6/hora
+    - `precios`: todos los parametros del modelo, pisables por env
+
+    OJO: los precios por defecto son estimaciones **sin verificar** contra el
+    pricing oficial de Twilio y OpenAI.
+    """
     done = db.q("SELECT duration_s, cost_usd FROM calls WHERE status='done'")
     total_cost = round(sum(c["cost_usd"] or 0 for c in done), 4)
     total_min = sum((c["duration_s"] or 0) for c in done) / 60
@@ -105,9 +207,18 @@ def metrics():
     }
 
 
-@router.post("/seed")
+@router.post("/seed", summary="Crear conductor + viaje de demo")
 def seed():
-    """Crea un conductor + viaje de demo. Idempotente-ish: siempre crea uno nuevo."""
+    """Arma el escenario de demo y siembra los thresholds por defecto.
+
+    Crea el conductor `d1` (Carlos Gimenez) y un viaje nuevo en estado `en_ruta`
+    hacia Puerto Buenos Aires Terminal 4 (-34.5745, -58.3660).
+
+    Devuelve `{trip_id, driver_id, port}`. **Crea un viaje nuevo cada vez que se
+    lo llama.**
+
+    Es el primer request a correr para probar cualquier otra cosa.
+    """
     rules.seed()
     did = "d1"
     db.x("INSERT OR REPLACE INTO drivers (id,name,phone) VALUES (?,?,?)",
@@ -120,8 +231,12 @@ def seed():
     return {"trip_id": tid, "driver_id": did, "port": DEMO_PORT}
 
 
-@router.post("/reset")
+@router.post("/reset", summary="Limpiar los datos de la demo")
 def reset():
+    """Vacia `pings`, `events`, `calls`, `alerts` y `trips`.
+
+    No toca `drivers` ni `thresholds`.
+    """
     for t in ("pings", "events", "calls", "alerts", "trips"):
         db.x(f"DELETE FROM {t}")
     return {"ok": True}

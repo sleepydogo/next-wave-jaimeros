@@ -35,8 +35,15 @@ def _bye(text: str):
     return _twiml(f'<Say {VOICE}>{escape(text)}</Say><Hangup/>')
 
 
-@router.post("/voice/{call_id}")
+@router.post("/voice/{call_id}", summary="Arranque de la llamada (lo llama Twilio)")
 async def voice(call_id: str):
+    """Twilio pega aca cuando el conductor atiende. **Devuelve TwiML, no JSON.**
+
+    Responde con un `<Gather input="speech">` y el saludo del agente en `<Say>`.
+
+    Si la sesion ya no existe en Redis (TTL 1 h) devuelve un `<Hangup/>` con
+    disculpa.
+    """
     s = await caller.load_session(call_id)
     if not s:
         return _bye("Hubo un problema con la llamada. Perdon.")
@@ -45,9 +52,19 @@ async def voice(call_id: str):
     return _ask(call_id, s["history"][0]["content"])
 
 
-@router.post("/gather/{call_id}")
+@router.post("/gather/{call_id}", summary="El conductor hablo (lo llama Twilio)")
 async def gather(call_id: str, SpeechResult: str = Form(default=""),
                  Confidence: float = Form(default=0.0)):
+    """Twilio postea lo que transcribio. **Devuelve TwiML, no JSON.**
+
+    El brain decide la respuesta y se devuelve otro `<Gather>` si la
+    conversacion sigue, o `<Say>` + `<Hangup/>` si ya termino.
+
+    `SpeechResult` vacio -> repregunta en vez de cortar.
+
+    La latencia entre el prompt y esta respuesta se mide y entra en las metricas
+    de voz como senal de hesitacion.
+    """
     s = await caller.load_session(call_id)
     latency = time.time() - s["last_ts"] if s else 2.0
     if not SpeechResult:
@@ -56,8 +73,15 @@ async def gather(call_id: str, SpeechResult: str = Form(default=""),
     return _bye(reply) if done else _ask(call_id, reply)
 
 
-@router.post("/status/{call_id}")
+@router.post("/status/{call_id}", summary="Fin de llamada (lo llama Twilio)")
 async def status(call_id: str, request: Request):
+    """Callback de fin de llamada.
+
+    Cierra la llamada, calcula el costo real (minuto iniciado de Twilio + ASR +
+    tokens) y publica `call.finished` en el bus.
+
+    **Es el unico lugar donde se escribe `cost_usd`.**
+    """
     form = await request.form()
     dur = float(form.get("CallDuration") or 0) or None
     await caller.finish(call_id, dur)
