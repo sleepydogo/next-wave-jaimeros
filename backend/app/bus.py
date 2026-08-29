@@ -7,6 +7,7 @@ API unica:
     await bus.publish(events.TRUCK_ARRIVED, {...})
 """
 import asyncio
+import inspect
 import json
 import logging
 import time
@@ -40,7 +41,10 @@ async def publish(event_type, payload, event_id=None, ts=None):
 async def _dispatch(msg):
     for fn in _handlers.get(msg["type"], []):
         try:
-            await fn(msg["payload"], msg)
+            if len(inspect.signature(fn).parameters) >= 2:
+                await fn(msg["payload"], msg)
+            else:  # compatibilidad con handlers simples del prototipo
+                await fn(msg["payload"])
         except Exception:
             log.exception("handler %s fallo en %s", fn.__name__, msg["type"])
 

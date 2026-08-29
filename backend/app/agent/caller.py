@@ -91,6 +91,9 @@ async def turn(call_id, user_said, latency_s, confidence=None):
     s["asr_turns"] += 1
 
     out, (ti, to) = await brain.respond(s["reason"], s["history"], s["ctx"])
+    if s["asr_turns"] >= 2 and not out.get("done"):
+        out = {**out, "done": True,
+               "outcome": {**out.get("outcome", {}), "needs_human": True}}
     s["tok_in"] += ti
     s["tok_out"] += to
     s["history"].append({"role": "assistant", "content": out["reply"]})
