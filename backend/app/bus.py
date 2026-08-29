@@ -10,27 +10,17 @@ API unica:
     await bus.publish(events.TRUCK_ARRIVED, {...})
 """
 import asyncio
+import inspect
 import json
 import logging
-import time
-import uuid
 
-from . import db
+from . import db, events
 from .config import RABBITMQ_URL
 from .state import r as redis_client
 
 log = logging.getLogger("bus")
 CHANNEL = "nextwave"
-SCHEMA_VERSION = 1
 _handlers: dict[str, list] = {}
-
-
-def new_event_id():
-    """ID unico del evento. Un retry conserva el mismo, un hecho nuevo usa otro.
-
-    El schema exige `^[A-Za-z0-9][A-Za-z0-9._:-]{5,127}$` (minimo 6 caracteres).
-    """
-    return f"evt_{uuid.uuid4().hex[:12]}"
 
 
 def on(event_type):
@@ -40,10 +30,9 @@ def on(event_type):
     return deco
 
 
-async def publish(event_type, payload, event_id=None):
+async def publish(event_type, payload, event_id=None, ts=None):
     """Publica un evento. `event_id` se pasa solo para reintentar el mismo hecho."""
-    msg = {"schema_version": SCHEMA_VERSION, "event_id": event_id or new_event_id(),
-           "type": event_type, "payload": payload, "ts": time.time()}
+    msg = events.envelope(event_type, payload, event_id, ts)
     db.log_event(payload.get("trip_id"), event_type, payload)
     log.info("publish %s %s %s", event_type, msg["event_id"], payload.get("trip_id"))
     if RABBITMQ_URL:
@@ -55,13 +44,16 @@ async def publish(event_type, payload, event_id=None):
 
 async def _dispatch(msg):
     # el contrato pide rechazar versiones desconocidas y loguear el event_id
-    if msg.get("schema_version") != SCHEMA_VERSION:
+    if msg.get("schema_version") != events.SCHEMA_VERSION:
         log.warning("descarto evento %s: schema_version %s desconocida",
                     msg.get("event_id"), msg.get("schema_version"))
         return
     for fn in _handlers.get(msg["type"], []):
         try:
-            await fn(msg["payload"])
+            if len(inspect.signature(fn).parameters) >= 2:
+                await fn(msg["payload"], msg)
+            else:  # compatibilidad con handlers simples del prototipo
+                await fn(msg["payload"])
         except Exception:
             log.exception("handler %s fallo en %s", fn.__name__, msg["type"])
 
@@ -78,10 +70,14 @@ async def _redis_consume():
 
 # ---------- rabbitmq backend ----------
 _amqp_ex = None
+# el exchange se declara recien cuando el consumer conecta. Sin esto, un publish
+# temprano encuentra _amqp_ex en None y explota.
+_amqp_ready = asyncio.Event()
 
 
 async def _amqp_publish(msg):
     import aio_pika
+    await asyncio.wait_for(_amqp_ready.wait(), timeout=15)
     await _amqp_ex.publish(
         aio_pika.Message(json.dumps(msg).encode()), routing_key=""
     )
@@ -95,6 +91,7 @@ async def _amqp_consume():
     _amqp_ex = await ch.declare_exchange(CHANNEL, aio_pika.ExchangeType.FANOUT)
     qu = await ch.declare_queue("nextwave.workers", durable=True)
     await qu.bind(_amqp_ex)
+    _amqp_ready.set()
     log.info("bus: rabbitmq fanout %s", CHANNEL)
     async with qu.iterator() as it:
         async for m in it:
