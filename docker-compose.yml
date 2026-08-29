@@ -42,8 +42,8 @@ services:
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-nextwave}:${RABBITMQ_PASSWORD:-nextwave-dev}@rabbitmq:5672/
       DB_PATH: /data/nextwave.db
       # sin esto la demo llamaria por telefono de verdad y gastaria plata
-      SIMULATE_CALLS: "1"
-      SIMULATE_DISPATCH: "1"
+      SIMULATE_CALLS: ${SIMULATE_CALLS:-1}
+      SIMULATE_DISPATCH: ${SIMULATE_DISPATCH:-1}
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8000}
       VALIDATE_TWILIO_SIGNATURE: ${VALIDATE_TWILIO_SIGNATURE:-1}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -54,6 +54,7 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       ALERT_EMAIL_FROM: ${ALERT_EMAIL_FROM:-NextWave <onboarding@resend.dev>}
       ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
+      DEMO_WORKER_PHONE: ${DEMO_WORKER_PHONE:-+5491100000000}
     volumes:
       - ./backend/app:/srv/app   # editar codigo local se refleja adentro
       - ./backend/sim:/srv/sim

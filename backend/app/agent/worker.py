@@ -59,7 +59,10 @@ async def on_call_finished(p, msg=None):
     """Cierra el ciclo: actualiza el viaje y escala si la voz da mal."""
     if not await _first_delivery(msg):
         return
-    trip_id, out, voice = p["trip_id"], p.get("outcome", {}), p.get("voice", {})
+    trip_id = p["trip_id"]
+    report = p.get("report", {})
+    out = report.get("worker_feedback", {})
+    triage = report.get("triage", {})
 
     if p["reason"] == "arrival_check":
         status = "esperando_puerto" if out.get("available") else "en_puerto"
@@ -67,11 +70,9 @@ async def on_call_finished(p, msg=None):
     elif p["reason"] == "load_authorized" and out.get("available") is not False:
         db.x("UPDATE trips SET status='cargando' WHERE id=?", (trip_id,))
 
-    risk = voice.get("risk", 0)
-    if risk >= 0.6 or out.get("needs_human"):
+    if triage.get("level") in ("high", "critical") or triage.get("needs_human"):
         await bus.publish(events.ALERT_RAISED, {
-            "trip_id": trip_id, "severity": "alta" if risk >= 0.6 else "media",
-            "title": f"Estado del conductor: riesgo {risk}",
-            "body": (f"fatiga={voice.get('fatigue')} estres={voice.get('stress')}. "
-                     f"{voice.get('notes', '')} | {out.get('problem') or ''}"),
+            "trip_id": trip_id, "severity": "alta" if triage.get("level") in ("high", "critical") else "media",
+            "title": f"Triage del conductor: {triage.get('level', 'high')}",
+            "body": triage.get("reason", "Se requiere intervencion humana"),
         })

@@ -6,6 +6,7 @@ import uuid
 from fastapi import APIRouter
 
 from .. import bus, costs, db, events
+from ..config import DEMO_WORKER_PHONE
 from ..detector import rules
 from ..jobs import threshold_agent
 
@@ -231,7 +232,7 @@ def seed():
     rules.seed()
     did = "driver_01"
     db.x("INSERT OR REPLACE INTO drivers (id,name,phone) VALUES (?,?,?)",
-         (did, "Carlos Gimenez", "+5491100000000"))
+         (did, "Carlos Gimenez", DEMO_WORKER_PHONE))
     tid = uuid.uuid4().hex[:8]
     db.x("INSERT INTO trips (id,driver_id,container,port_name,port_lat,port_lon,status,created_at) "
          "VALUES (?,?,?,?,?,?,?,?)",
