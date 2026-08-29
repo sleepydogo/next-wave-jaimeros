@@ -17,5 +17,7 @@ TWILIO_FROM = os.getenv("TWILIO_FROM", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
+GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
+
 SIMULATE_CALLS = os.getenv("SIMULATE_CALLS", "1") == "1"
 ALERT_EMAIL = os.getenv("ALERT_EMAIL", "ops@demo.com")

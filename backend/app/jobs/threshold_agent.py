@@ -88,7 +88,7 @@ async def run_once():
     return applied
 
 
-async def loop(every_seconds=300):
+async def loop(every_seconds=1800):  # 30 min
     while True:
         await asyncio.sleep(every_seconds)
         try:
