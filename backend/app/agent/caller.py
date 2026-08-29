@@ -5,11 +5,11 @@ import logging
 import time
 import uuid
 
-from .. import bus, costs, db, events
+from .. import bus, costs, db, events, state
 from ..config import (PUBLIC_URL, SIMULATE_CALLS, TWILIO_ACCOUNT_SID,
                       TWILIO_AUTH_TOKEN, TWILIO_FROM)
 from ..state import r as redis_client
-from . import brain
+from . import brain, report
 
 log = logging.getLogger("caller")
 
@@ -24,13 +24,6 @@ SIM_REPLIES = {
 }
 
 
-async def _ctx(trip_id, detail=""):
-    t = db.one("SELECT * FROM trips WHERE id=?", (trip_id,))
-    d = db.one("SELECT * FROM drivers WHERE id=?", (t["driver_id"],))
-    return {"name": d["name"], "phone": d["phone"], "port": t["port_name"],
-            "container": t["container"], "detail": detail, "trip_id": trip_id}
-
-
 async def save_session(call_id, s):
     await redis_client.set(f"call:{call_id}", json.dumps(s), ex=3600)
 
@@ -40,12 +33,24 @@ async def load_session(call_id):
     return json.loads(v) if v else None
 
 
-async def start(trip_id, reason, detail=""):
+async def start(payload, reason, detail="", source_event_id=None, event_type=None):
     """Arranca una llamada. Devuelve call_id."""
     call_id = uuid.uuid4().hex[:12]
-    ctx = await _ctx(trip_id, detail)
+    payload = dict(payload)
+    if detail:
+        payload["detail"] = detail
+    trip_id = payload.get("trip_id", "unknown")
+    event_type = event_type or {"arrival_check": events.TRUCK_ARRIVED,
+                                "load_authorized": events.PORT_READY,
+                                "emergency": events.TRUCK_STOPPED}.get(reason, events.TRUCK_STOPPED)
+    event = {"schema_version": 1, "event_id": source_event_id or events.new_id(),
+             "type": event_type, "payload": payload, "ts": time.time()}
+    ctx = {"name": payload.get("worker_name", "conductor"),
+           "phone": payload.get("worker_phone", ""), "port": payload.get("port_name", "el puerto"),
+           "container": payload.get("container", "el contenedor"), "detail": payload.get("detail", ""),
+           "trip_id": trip_id}
     opener = brain.opener(reason, ctx)
-    session = {"trip_id": trip_id, "reason": reason, "ctx": ctx,
+    session = {"trip_id": trip_id, "reason": reason, "ctx": ctx, "event": event,
                "history": [{"role": "assistant", "content": opener}],
                "t0": time.time(), "last_ts": time.time(),
                "asr_turns": 0, "tok_in": 0, "tok_out": 0}
@@ -54,10 +59,16 @@ async def start(trip_id, reason, detail=""):
          (call_id, trip_id, reason, "ringing", opener, time.time()))
     log.info("llamada %s -> %s (%s)", call_id, ctx["phone"], reason)
 
-    if SIMULATE_CALLS:
-        asyncio.create_task(_simulate(call_id))
+    try:
+        events.validate_trigger(event_type, payload)
+    except ValueError as exc:
+        log.warning("evento invalido para llamada %s: %s", call_id, exc)
+        await finish(call_id, status="failed")
     else:
-        _twilio_dial(call_id, ctx["phone"])
+        if SIMULATE_CALLS:
+            asyncio.create_task(_simulate(call_id))
+        else:
+            _twilio_dial(call_id, ctx["phone"])
     return call_id
 
 
@@ -94,19 +105,25 @@ async def turn(call_id, user_said, latency_s, confidence=None):
     return out["reply"], bool(out.get("done"))
 
 
-async def finish(call_id, duration_s=None):
+async def finish(call_id, duration_s=None, status="done"):
+    if not await state.once(f"call:{call_id}:finish", ttl=86400):
+        return
     s = await load_session(call_id)
     if not s:
         return
     dur = duration_s if duration_s is not None else time.time() - s["t0"]
     cost = costs.call_cost(dur, s["asr_turns"], s["tok_in"], s["tok_out"])
-    db.x("UPDATE calls SET status='done', duration_s=?, cost_usd=? WHERE id=?",
-         (dur, cost, call_id))
+    db.x("UPDATE calls SET status=?, duration_s=?, cost_usd=? WHERE id=?",
+         (status, dur, cost, call_id))
     row = db.one("SELECT * FROM calls WHERE id=?", (call_id,))
+    transcript = row["transcript"] or ""
+    outcome = json.loads(row["outcome"] or "{}")
+    voice = json.loads(row["voice"] or "{}")
+    built = report.build(s["event"], {"call_id": call_id}, outcome, voice, status, transcript)
     await bus.publish(events.CALL_FINISHED, {
         "trip_id": s["trip_id"], "call_id": call_id, "reason": s["reason"],
-        "outcome": json.loads(row["outcome"] or "{}"),
-        "voice": json.loads(row["voice"] or "{}"),
+        "source_event_id": s["event"]["event_id"], "outcome": outcome, "voice": voice,
+        "report": built,
         "cost_usd": cost,
     })
 

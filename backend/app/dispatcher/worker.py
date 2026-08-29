@@ -19,7 +19,7 @@ ROUTING = {"alta": ["email", "whatsapp", "dashboard"],
 
 
 @bus.on(events.ALERT_RAISED)
-async def on_alert(p):
+async def on_alert(p, msg=None):
     sev = p.get("severity", "media")
     channels = ROUTING.get(sev, ["dashboard"])
     db.x("INSERT INTO alerts (trip_id,severity,title,body,channels,ts) VALUES (?,?,?,?,?,?)",
