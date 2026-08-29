@@ -17,9 +17,15 @@ class Ping(BaseModel):
     speed: float = 0.0
 
 
-@router.get("/{driver_id}/trip")
+@router.get("/{driver_id}/trip", summary="Viaje activo del conductor")
 def current_trip(driver_id: str):
-    """El viaje activo del conductor, para la pantalla principal de la app."""
+    """Pantalla principal de la app: `{trip, calls}`.
+
+    Devuelve el ultimo viaje que no este `cerrado` y sus ultimas 5 llamadas.
+    Si el conductor no tiene viaje activo devuelve `{"trip": null}`.
+
+    En la demo el `driver_id` es `d1`.
+    """
     trip = db.one(
         "SELECT * FROM trips WHERE driver_id=? AND status!='cerrado' ORDER BY created_at DESC LIMIT 1",
         (driver_id,))
@@ -30,17 +36,38 @@ def current_trip(driver_id: str):
     return {"trip": trip, "calls": calls}
 
 
-@router.post("/ping")
+@router.post("/ping", summary="Posicion GPS del camion")
 async def ping(p: Ping):
-    """La app manda posicion cada pocos segundos. Aca vive el detector."""
+    """La app manda posicion cada pocos segundos. **Es el unico input del detector.**
+
+    `speed` va en km/h. Devuelve `{"ok": true, "status": <estado del viaje>}`.
+
+    Segun donde caiga la posicion, el detector puede publicar un evento:
+
+    | situacion | evento | consecuencia |
+    |---|---|---|
+    | entra al geofence del puerto (800 m) | `truck.arrived` | llamada `arrival_check` |
+    | 3+ pings seguidos < 3 km/h por 120 s | `truck.stopped` | alerta alta + llamada `emergency` |
+    | cae >60% viniendo a mas de 40 km/h | `truck.slowdown` | alerta media + llamada `emergency` |
+
+    Hay un **lock anti-spam** en Redis: mandar 50 pings iguales dentro del
+    geofence genera **una sola** llamada.
+
+    Para probar una parada sin esperar 2 minutos, bajar antes el threshold con
+    `POST /ops/thresholds/stop_min_seconds?value=8`.
+    """
     await detector.process_ping(p.trip_id, {"lat": p.lat, "lon": p.lon,
                                             "speed": p.speed, "ts": time.time()})
     trip = db.one("SELECT status FROM trips WHERE id=?", (p.trip_id,))
     return {"ok": True, "status": trip["status"] if trip else None}
 
 
-@router.post("/{trip_id}/ack")
+@router.post("/{trip_id}/ack", summary="'Ya estoy listo para cargar'")
 def ack(trip_id: str):
-    """Boton 'ya estoy listo' en la app: evita una llamada."""
+    """Boton en la app que evita una llamada: pasa el viaje a `esperando_puerto`.
+
+    Es una palanca de reduccion de costo: cada ack ahorra una llamada
+    (~USD 0.20).
+    """
     db.x("UPDATE trips SET status='esperando_puerto' WHERE id=?", (trip_id,))
     return {"ok": True}
