@@ -75,8 +75,10 @@ async def lifespan(app: FastAPI):
     tasks = [bus.start(), asyncio.create_task(threshold_agent.loop())]
     logging.info("nextwave arriba")
     yield
-    for t in tasks:
+    await bus.stop()
+    for t in tasks[1:]:
         t.cancel()
+    await asyncio.gather(*tasks[1:], return_exceptions=True)
 
 
 app = FastAPI(
@@ -96,3 +98,17 @@ app.include_router(twilio_hooks.router)
 def health():
     """Devuelve `{"ok": true}` si el server esta arriba."""
     return {"ok": True}
+
+
+@app.get("/ready", tags=["salud"], summary="Readiness de dependencias")
+async def ready():
+    """Indica si el transporte de eventos ya acepta publicaciones."""
+    from fastapi import HTTPException
+    from .config import RABBITMQ_URL
+    if RABBITMQ_URL and not bus._amqp_ready.is_set():
+        raise HTTPException(status_code=503, detail="RabbitMQ no esta listo")
+    try:
+        await bus.redis_client.ping()
+    except Exception:
+        raise HTTPException(status_code=503, detail="Redis no esta listo")
+    return {"ok": True, "transport": "rabbitmq" if RABBITMQ_URL else "redis"}
