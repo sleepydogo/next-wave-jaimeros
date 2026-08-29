@@ -1,0 +1,43 @@
+# --- secretos / config local ---
+.env
+.env.local
+
+# --- python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# --- base de datos local ---
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# --- node / react (web) ---
+node_modules/
+dist/
+build/
+.vite/
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# --- expo / react native (mobile) ---
+.expo/
+.expo-shared/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# --- editores / SO ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
