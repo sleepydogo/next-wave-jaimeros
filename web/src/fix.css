@@ -1,0 +1,70 @@
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  margin: 0 0 20px;
+  color: #738079;
+  font: 500 11px "DM Mono";
+  white-space: nowrap;
+  overflow: hidden;
+}
+.breadcrumb button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0d6b4d;
+  cursor: pointer;
+  font: 500 11px "DM Mono";
+}
+.breadcrumb button:hover {
+  text-decoration: underline;
+}
+.breadcrumb span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #66716d;
+}
+.route-map .map-popup {
+  z-index: 12;
+  transform: translate(-18px, -calc(100% + 22px));
+  max-width: calc(100% - 20px);
+}
+.map-popup:after {
+  z-index: -1;
+}
+.map-popup button:focus-visible,
+.breadcrumb button:focus-visible {
+  outline: 3px solid #a9d8c4;
+  outline-offset: 3px;
+}
+.map-pin {
+  z-index: 5;
+}
+.map-pin:has(+ .map-popup) {
+  z-index: 13;
+}
+.map-popup .popup-close {
+  padding: 0;
+}
+.map-popup .popup-close:hover {
+  background: #e4ece7;
+}
+.map-popup button:not(.popup-close) {
+  min-height: 26px;
+}
+.pin-hover {
+  z-index: 15;
+}
+@media (max-width: 650px) {
+  .breadcrumb {
+    margin-bottom: 16px;
+  }
+  .route-map .map-popup {
+    width: min(240px, calc(100vw - 56px));
+    transform: translate(-12px, -calc(100% + 18px));
+  }
+  .map-popup:after {
+    left: 24px;
+  }
+}
