@@ -86,7 +86,7 @@ def _twilio_dial(call_id, to):
         url=f"{PUBLIC_URL}/twilio/voice/{call_id}",
         status_callback=f"{PUBLIC_URL}/twilio/status/{call_id}",
         status_callback_method="POST",
-        status_callback_event=["initiated", "ringing", "answered", "completed"],
+        status_callback_event=["completed"],
     )
     return call.sid
 
@@ -134,8 +134,7 @@ async def finish(call_id, duration_s=None, status="done"):
     built = report.build(s["event"], {"call_id": call_id}, outcome, voice, status, transcript)
     await bus.publish(events.CALL_FINISHED, {
         "trip_id": s["trip_id"], "call_id": call_id, "reason": s["reason"],
-        "source_event_id": s["event"]["event_id"], "outcome": outcome, "voice": voice,
-        "report": built,
+        "source_event_id": s["event"]["event_id"], "report": built,
         "cost_usd": cost,
     })
 

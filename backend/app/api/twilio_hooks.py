@@ -45,7 +45,7 @@ async def voice(call_id: str, request: Request):
     Si la sesion ya no existe en Redis (TTL 1 h) devuelve un `<Hangup/>` con
     disculpa.
     """
-    _validate_signature(request, {})
+    _validate_signature(request, dict(await request.form()))
     s = await caller.load_session(call_id)
     if not s:
         return _bye("Hubo un problema con la llamada. Perdon.")
