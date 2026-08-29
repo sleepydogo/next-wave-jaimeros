@@ -68,18 +68,27 @@ async def start(payload, reason, detail="", source_event_id=None, event_type=Non
         if SIMULATE_CALLS:
             asyncio.create_task(_simulate(call_id))
         else:
-            _twilio_dial(call_id, ctx["phone"])
+            try:
+                sid = await asyncio.to_thread(_twilio_dial, call_id, ctx["phone"])
+                db.x("UPDATE calls SET twilio_sid=? WHERE id=?", (sid, call_id))
+                log.info("llamada %s iniciada twilio_sid=%s telefono=***%s", call_id, sid,
+                         ctx["phone"][-4:])
+            except Exception:
+                log.exception("twilio fallo al iniciar call_id=%s", call_id)
+                await finish(call_id, status="failed")
     return call_id
 
 
 def _twilio_dial(call_id, to):
     from twilio.rest import Client
-    Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN).calls.create(
+    call = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN).calls.create(
         to=to, from_=TWILIO_FROM,
         url=f"{PUBLIC_URL}/twilio/voice/{call_id}",
         status_callback=f"{PUBLIC_URL}/twilio/status/{call_id}",
-        status_callback_event=["completed"],
+        status_callback_method="POST",
+        status_callback_event=["initiated", "ringing", "answered", "completed"],
     )
+    return call.sid
 
 
 async def turn(call_id, user_said, latency_s, confidence=None):
