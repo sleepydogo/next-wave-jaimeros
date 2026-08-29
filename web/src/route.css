@@ -1,0 +1,231 @@
+.map-pin {
+  overflow: visible;
+}
+.pin-hover {
+  position: absolute;
+  left: 50%;
+  bottom: 42px;
+  width: max-content;
+  max-width: 190px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: #12201f;
+  color: #fff;
+  font: 500 10px Manrope;
+  line-height: 1.3;
+  text-align: left;
+  opacity: 0;
+  pointer-events: none;
+  transform: rotate(45deg) translateX(-25%);
+  transition: opacity 0.15s;
+  box-shadow: 0 4px 14px #12201f33;
+}
+.map-pin:hover .pin-hover,
+.map-pin:focus-visible .pin-hover {
+  opacity: 1;
+}
+.map-pin.attention {
+  background: #c57822;
+}
+.map-pin.critical {
+  background: #cc4b3e;
+}
+.map-popup {
+  position: absolute;
+  z-index: 8;
+  width: 255px;
+  padding: 15px;
+  border: 1px solid #dce4df;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 34px #12201f30;
+  transform: translate(-15px, -calc(100% + 18px));
+  animation: popup-in 0.16s ease-out;
+}
+.map-popup:after {
+  content: "";
+  position: absolute;
+  bottom: -7px;
+  left: 28px;
+  width: 13px;
+  height: 13px;
+  background: #fff;
+  border-right: 1px solid #dce4df;
+  border-bottom: 1px solid #dce4df;
+  transform: rotate(45deg);
+}
+.map-popup strong,
+.map-popup small {
+  display: block;
+  position: relative;
+  z-index: 1;
+}
+.map-popup strong {
+  margin: 10px 0 3px;
+  font-size: 13px;
+}
+.map-popup small {
+  color: #66716d;
+  font: 500 10px "DM Mono";
+}
+.map-popup p {
+  position: relative;
+  z-index: 1;
+  margin: 10px 0;
+  color: #44504b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.map-popup button:not(.popup-close) {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0d6b4d;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 800;
+}
+.popup-close {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  border: 0;
+  border-radius: 6px;
+  background: #f1f5f2;
+  color: #66716d;
+  cursor: pointer;
+}
+.call-level {
+  display: inline-block;
+  padding: 3px 6px;
+  border-radius: 99px;
+  background: #edf5ef;
+  color: #0d6b4d;
+  font: 500 9px "DM Mono";
+  text-transform: uppercase;
+}
+.call-level.attention {
+  background: #fff1e6;
+  color: #a8541d;
+}
+@keyframes popup-in {
+  from {
+    opacity: 0;
+    transform: translate(-15px, -calc(100% + 8px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-15px, -calc(100% + 18px));
+  }
+}
+.route-report {
+  margin-top: 22px;
+  border: 1px solid #dce4df;
+  border-radius: 16px;
+  background: #fff;
+  overflow: hidden;
+}
+.route-report header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 23px 24px;
+  border-bottom: 1px solid #dce4df;
+}
+.route-report h2 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: -0.5px;
+}
+.route-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-bottom: 1px solid #dce4df;
+}
+.route-metrics div {
+  padding: 18px 20px;
+  border-right: 1px solid #dce4df;
+}
+.route-metrics div:last-child {
+  border: 0;
+}
+.route-metrics small,
+.route-metrics span {
+  display: block;
+  color: #66716d;
+  font-size: 10px;
+}
+.route-metrics small {
+  font: 500 10px "DM Mono";
+  text-transform: uppercase;
+}
+.route-metrics strong {
+  display: block;
+  margin: 7px 0 3px;
+  font-size: 19px;
+  letter-spacing: -0.7px;
+}
+.route-log {
+  padding: 22px 24px;
+}
+.route-log h3 {
+  margin: 0 0 11px;
+  font-size: 13px;
+}
+.route-event {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid #edf1ee;
+}
+.route-event time {
+  color: #66716d;
+  font: 500 11px "DM Mono";
+}
+.route-event strong,
+.route-event span {
+  display: block;
+  font-size: 12px;
+}
+.route-event span {
+  margin-top: 3px;
+  color: #66716d;
+}
+.route-report footer {
+  padding: 14px 24px;
+  background: #f3f7f4;
+  color: #66716d;
+  font-size: 11px;
+}
+@media (max-width: 650px) {
+  .route-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .route-metrics div:nth-child(2) {
+    border-right: 0;
+  }
+  .route-metrics div:nth-child(-n + 2) {
+    border-bottom: 1px solid #dce4df;
+  }
+  .map-popup {
+    width: 220px;
+  }
+  .route-report header {
+    display: block;
+  }
+  .route-report header .status {
+    margin-top: 10px;
+  }
+}
