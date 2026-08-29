@@ -20,7 +20,9 @@ def build(event, call, outcome=None, voice=None, status="done", transcript=""):
     voice = voice or {}
     needs_human = bool(outcome.get("needs_human")) or status != "done"
     problem = outcome.get("problem")
-    code = "no_contact" if status in ("no_answer", "busy") else _problem_code(problem)
+    code = "no_contact" if status in ("no_answer", "busy") else (
+        "unknown" if needs_human and not problem else _problem_code(problem)
+    )
     risk = float(voice.get("risk", 0) or 0)
 
     if status in ("no_answer", "busy"):
