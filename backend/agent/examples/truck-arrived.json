@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "evt_arrived_001",
+  "type": "truck.arrived",
+  "payload": {
+    "trip_id": "op_123",
+    "worker_id": "driver_45",
+    "worker_name": "Carlos",
+    "worker_phone": "+5491100000000",
+    "lat": -34.5745,
+    "lon": -58.366,
+    "location_label": "Puerto Buenos Aires - Terminal 4",
+    "detail": "ingreso al geofence",
+    "container": "MSCU-4471820",
+    "port_name": "Puerto Buenos Aires - Terminal 4"
+  },
+  "ts": 1787990400.0
+}

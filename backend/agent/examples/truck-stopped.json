@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "evt_stopped_001",
+  "type": "truck.stopped",
+  "payload": {
+    "trip_id": "op_123",
+    "worker_id": "driver_45",
+    "worker_name": "Carlos",
+    "worker_phone": "+5491100000000",
+    "lat": -34.6037,
+    "lon": -58.3816,
+    "location_label": "RN9 km 72",
+    "detail": "parada no planificada",
+    "container": "MSCU-4471820",
+    "seconds": 420
+  },
+  "ts": 1787990400.0
+}

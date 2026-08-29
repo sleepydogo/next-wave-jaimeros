@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nextwave.local/schemas/event.schema.json",
+  "title": "NextWave enriched event",
+  "oneOf": [
+    { "$ref": "#/$defs/truckArrived" },
+    { "$ref": "#/$defs/portReady" },
+    { "$ref": "#/$defs/truckStopped" },
+    { "$ref": "#/$defs/truckSlowdown" },
+    { "$ref": "#/$defs/callFinished" }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{5,127}$"
+    },
+    "envelope": {
+      "type": "object",
+      "required": ["schema_version", "event_id", "type", "payload", "ts"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "event_id": { "$ref": "#/$defs/id" },
+        "type": { "type": "string" },
+        "payload": { "type": "object" },
+        "ts": { "type": "number", "minimum": 0 }
+      }
+    },
+    "inputPayload": {
+      "type": "object",
+      "required": [
+        "trip_id",
+        "worker_id",
+        "worker_name",
+        "worker_phone",
+        "lat",
+        "lon",
+        "location_label"
+      ],
+      "properties": {
+        "trip_id": { "$ref": "#/$defs/id" },
+        "worker_id": { "$ref": "#/$defs/id" },
+        "worker_name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "worker_phone": {
+          "type": "string",
+          "pattern": "^\\+[1-9][0-9]{7,14}$"
+        },
+        "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+        "lon": { "type": "number", "minimum": -180, "maximum": 180 },
+        "location_label": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "detail": { "type": "string", "maxLength": 500 },
+        "container": { "type": "string", "maxLength": 80 },
+        "port_name": { "type": "string", "maxLength": 160 }
+      }
+    },
+    "arrivedPayload": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/$defs/inputPayload" },
+        {
+          "type": "object",
+          "required": ["port_name"],
+          "properties": {
+            "port_name": { "type": "string", "minLength": 1, "maxLength": 160 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "readyPayload": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/$defs/inputPayload" },
+        {
+          "type": "object",
+          "required": ["port_name"],
+          "properties": {
+            "port_name": { "type": "string", "minLength": 1, "maxLength": 160 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "stoppedPayload": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/$defs/inputPayload" },
+        {
+          "type": "object",
+          "required": ["seconds"],
+          "properties": {
+            "seconds": { "type": "number", "minimum": 0 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "slowdownPayload": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/$defs/inputPayload" },
+        {
+          "type": "object",
+          "required": ["drop_pct"],
+          "properties": {
+            "drop_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "previous_speed": { "type": "number", "minimum": 0 },
+            "current_speed": { "type": "number", "minimum": 0 }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "truckArrived": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "truck.arrived" },
+            "payload": { "$ref": "#/$defs/arrivedPayload" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "portReady": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "port.ready" },
+            "payload": { "$ref": "#/$defs/readyPayload" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "truckStopped": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "truck.stopped" },
+            "payload": { "$ref": "#/$defs/stoppedPayload" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "truckSlowdown": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "truck.slowdown" },
+            "payload": { "$ref": "#/$defs/slowdownPayload" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    "where": {
+      "type": "object",
+      "required": ["lat", "lon", "label"],
+      "properties": {
+        "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+        "lon": { "type": "number", "minimum": -180, "maximum": 180 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 240 }
+      },
+      "additionalProperties": false
+    },
+    "triage": {
+      "type": "object",
+      "required": ["level", "needs_human", "reason"],
+      "properties": {
+        "level": { "enum": ["low", "medium", "high", "critical"] },
+        "needs_human": { "type": "boolean" },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 500 }
+      },
+      "additionalProperties": false
+    },
+    "nextStep": {
+      "type": "object",
+      "required": ["action", "owner", "status"],
+      "properties": {
+        "action": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "owner": { "enum": ["agent", "worker", "operations", "maintenance"] },
+        "status": { "enum": ["pending", "completed", "cancelled"] }
+      },
+      "additionalProperties": false
+    },
+    "diagnosis": {
+      "type": "object",
+      "required": ["code", "summary", "confidence"],
+      "properties": {
+        "code": {
+          "enum": [
+            "normal",
+            "delayed",
+            "vehicle_issue",
+            "worker_fatigue",
+            "safety_incident",
+            "no_contact",
+            "unknown"
+          ]
+        },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "workerFeedback": {
+      "type": "object",
+      "required": ["summary", "available", "eta_min"],
+      "properties": {
+        "summary": { "type": "string", "maxLength": 1000 },
+        "available": { "type": ["boolean", "null"] },
+        "eta_min": {
+          "type": ["number", "null"],
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "report": {
+      "type": "object",
+      "required": [
+        "id",
+        "operation_id",
+        "worker_id",
+        "call_id",
+        "event_type",
+        "what_happened",
+        "where",
+        "triage",
+        "agent_resolution",
+        "next_steps",
+        "diagnosis",
+        "worker_feedback",
+        "call_status",
+        "transcript",
+        "created_at"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "operation_id": { "$ref": "#/$defs/id" },
+        "worker_id": { "$ref": "#/$defs/id" },
+        "call_id": { "$ref": "#/$defs/id" },
+        "event_type": {
+          "enum": ["truck.arrived", "port.ready", "truck.stopped", "truck.slowdown"]
+        },
+        "what_happened": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "where": { "$ref": "#/$defs/where" },
+        "triage": { "$ref": "#/$defs/triage" },
+        "agent_resolution": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "next_steps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/nextStep" },
+          "maxItems": 20
+        },
+        "diagnosis": { "$ref": "#/$defs/diagnosis" },
+        "worker_feedback": { "$ref": "#/$defs/workerFeedback" },
+        "call_status": { "enum": ["done", "failed", "no_answer", "busy"] },
+        "transcript": { "type": "string", "maxLength": 20000 },
+        "created_at": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "finishedPayload": {
+      "type": "object",
+      "required": [
+        "trip_id",
+        "call_id",
+        "source_event_id",
+        "reason",
+        "report",
+        "cost_usd"
+      ],
+      "properties": {
+        "trip_id": { "$ref": "#/$defs/id" },
+        "call_id": { "$ref": "#/$defs/id" },
+        "source_event_id": { "$ref": "#/$defs/id" },
+        "reason": { "enum": ["arrival_check", "load_authorized", "emergency"] },
+        "report": { "$ref": "#/$defs/report" },
+        "cost_usd": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "callFinished": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "call.finished" },
+            "payload": { "$ref": "#/$defs/finishedPayload" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}

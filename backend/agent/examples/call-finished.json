@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "event_id": "evt_call_finished_001",
+  "type": "call.finished",
+  "payload": {
+    "trip_id": "op_123",
+    "call_id": "call_789",
+    "source_event_id": "evt_stopped_001",
+    "reason": "emergency",
+    "report": {
+      "id": "report_abc123",
+      "operation_id": "op_123",
+      "worker_id": "driver_45",
+      "call_id": "call_789",
+      "event_type": "truck.stopped",
+      "what_happened": "Camion detenido fuera de una parada planificada",
+      "where": {
+        "lat": -34.6037,
+        "lon": -58.3816,
+        "label": "RN9 km 72"
+      },
+      "triage": {
+        "level": "high",
+        "needs_human": true,
+        "reason": "El trabajador reporta fatiga"
+      },
+      "agent_resolution": "Escalo el caso a operaciones",
+      "next_steps": [
+        {
+          "action": "Contactar al supervisor de turno",
+          "owner": "operations",
+          "status": "pending"
+        }
+      ],
+      "diagnosis": {
+        "code": "worker_fatigue",
+        "summary": "Parada preventiva por cansancio",
+        "confidence": 0.88
+      },
+      "worker_feedback": {
+        "summary": "Necesita descansar veinte minutos",
+        "available": false,
+        "eta_min": 20
+      },
+      "call_status": "done",
+      "transcript": "AGENTE: Esta todo bien?\nTRABAJADOR: Necesito descansar.",
+      "created_at": 1787990460.0
+    },
+    "cost_usd": 0.2
+  },
+  "ts": 1787990460.0
+}
