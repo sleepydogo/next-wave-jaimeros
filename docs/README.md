@@ -9,6 +9,13 @@
 - **Backend**: [`backend/README.md`](../backend/README.md) — el flujo completo,
   los módulos y qué estado vive en Redis vs. SQLite.
 - **Estilo de código**: [`backend/CODESTYLE.md`](../backend/CODESTYLE.md).
+- **Contrato del agente**: [`backend/agent/EVENTS.md`](../backend/agent/EVENTS.md).
+- **Roadmap del dispatcher**:
+  [`backend/agent/DISPATCHER_ROADMAP.md`](../backend/agent/DISPATCHER_ROADMAP.md).
+- **Roadmap de Twilio Voice**:
+  [`backend/agent/TWILIO_ROADMAP.md`](../backend/agent/TWILIO_ROADMAP.md).
+- **Roadmap de RabbitMQ y Docker**:
+  [`backend/agent/RABBITMQ_DOCKER_ROADMAP.md`](../backend/agent/RABBITMQ_DOCKER_ROADMAP.md).
 
 ## Documentos pendientes
 

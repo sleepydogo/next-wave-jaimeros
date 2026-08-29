@@ -2,6 +2,7 @@
 
 import time
 import uuid
+import re
 
 SCHEMA_VERSION = 1
 
@@ -37,6 +38,8 @@ def validate_trigger(event_type, payload):
     missing = sorted(required - payload.keys())
     if missing:
         raise ValueError(f"faltan campos: {', '.join(missing)}")
+    if not re.fullmatch(r"\+[1-9][0-9]{7,14}", str(payload["worker_phone"])):
+        raise ValueError("worker_phone no esta en formato E.164")
     if event_type in (TRUCK_ARRIVED, PORT_READY) and not payload.get("port_name"):
         raise ValueError("falta port_name")
     if event_type == TRUCK_STOPPED and "seconds" not in payload:

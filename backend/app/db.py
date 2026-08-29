@@ -65,6 +65,9 @@ def conn():
 def init():
     with conn() as c:
         c.executescript(SCHEMA)
+        columns = {row[1] for row in c.execute("PRAGMA table_info(calls)")}
+        if "twilio_sid" not in columns:
+            c.execute("ALTER TABLE calls ADD COLUMN twilio_sid TEXT")
 
 
 def q(sql, args=()):

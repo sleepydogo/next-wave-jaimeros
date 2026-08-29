@@ -3,8 +3,11 @@ name: nextwave
 services:
   redis:
     image: redis:7-alpine
+    command: redis-server --appendonly yes
     ports:
       - "6379:6379"
+    volumes:
+      - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
@@ -13,9 +16,14 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-nextwave}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-nextwave-dev}
     ports:
       - "5672:5672"    # el bus
       - "15672:15672"  # consola web: guest / guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
       # check_port_connectivity, NO "ping": ping solo dice que el nodo Erlang
       # esta vivo, y el listener AMQP del 5672 tarda mas en levantar. Con ping
@@ -31,16 +39,21 @@ services:
       - "8000:8000"
     environment:
       REDIS_URL: redis://redis:6379/0
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-nextwave}:${RABBITMQ_PASSWORD:-nextwave-dev}@rabbitmq:5672/
       DB_PATH: /data/nextwave.db
       # sin esto la demo llamaria por telefono de verdad y gastaria plata
       SIMULATE_CALLS: "1"
-      PUBLIC_URL: http://localhost:8000
+      SIMULATE_DISPATCH: "1"
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8000}
+      VALIDATE_TWILIO_SIGNATURE: ${VALIDATE_TWILIO_SIGNATURE:-1}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       TWILIO_FROM: ${TWILIO_FROM:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      ALERT_EMAIL_FROM: ${ALERT_EMAIL_FROM:-NextWave <onboarding@resend.dev>}
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
     volumes:
       - ./backend/app:/srv/app   # editar codigo local se refleja adentro
       - ./backend/sim:/srv/sim
@@ -58,5 +71,19 @@ services:
       timeout: 5s
       retries: 20
 
+  ngrok:
+    image: ngrok/ngrok:3-alpine
+    profiles: ["voice"]
+    command: ["http", "--domain=${NGROK_DOMAIN:-CHANGEME.ngrok-free.app}", "backend:8000"]
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    ports:
+      - "4040:4040"
+    depends_on:
+      backend:
+        condition: service_healthy
+
 volumes:
   nextwave-data:
+  redis-data:
+  rabbitmq-data:

@@ -55,6 +55,12 @@ El contrato que deben usar detector y backend esta en
 [`EVENTS.md`](./EVENTS.md), con JSON Schema en
 [`event.schema.json`](./event.schema.json).
 
+Roadmaps de integraciones:
+
+- [`DISPATCHER_ROADMAP.md`](./DISPATCHER_ROADMAP.md): dashboard + email Resend.
+- [`TWILIO_ROADMAP.md`](./TWILIO_ROADMAP.md): Twilio Voice + OpenAI.
+- [`RABBITMQ_DOCKER_ROADMAP.md`](./RABBITMQ_DOCKER_ROADMAP.md): broker, ngrok y Compose.
+
 ## Estado actual
 
 Existe un prototipo generado en `backend/app/`, pero no debe asumirse que el
@@ -72,7 +78,7 @@ backend ni sus contratos estan terminados. Hay que validar y adaptar cada pieza:
 
 ## Desarrollo local
 
-Requisitos: Python 3.11+, `uv` y Redis.
+Requisitos: Python 3.11+, `uv` y Redis. Para el entorno completo, Docker Desktop.
 
 ```bash
 brew services start redis
