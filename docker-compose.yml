@@ -17,9 +17,12 @@ services:
       - "5672:5672"    # el bus
       - "15672:15672"  # consola web: guest / guest
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      # check_port_connectivity, NO "ping": ping solo dice que el nodo Erlang
+      # esta vivo, y el listener AMQP del 5672 tarda mas en levantar. Con ping
+      # el backend arranca contra un rabbit que todavia rechaza conexiones.
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
       interval: 5s
-      timeout: 5s
+      timeout: 10s
       retries: 20
 
   backend:
