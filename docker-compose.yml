@@ -25,9 +25,12 @@ services:
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      # check_port_connectivity, NO "ping": ping solo dice que el nodo Erlang
+      # esta vivo, y el listener AMQP del 5672 tarda mas en levantar. Con ping
+      # el backend arranca contra un rabbit que todavia rechaza conexiones.
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
       interval: 5s
-      timeout: 5s
+      timeout: 10s
       retries: 20
 
   backend:
@@ -44,6 +47,7 @@ services:
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8000}
       VALIDATE_TWILIO_SIGNATURE: ${VALIDATE_TWILIO_SIGNATURE:-1}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
       TWILIO_FROM: ${TWILIO_FROM:-}

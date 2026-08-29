@@ -1,10 +1,30 @@
-"""Consume pings de GPS y publica eventos de negocio al bus."""
+"""Consume pings de GPS desde Redis y publica eventos de negocio al bus."""
+import asyncio
 import logging
 
 from .. import bus, db, events, state
-from . import rules
+from . import geocode, rules
 
 log = logging.getLogger("detector")
+
+
+async def loop():
+    """El detector: consume la cola de pings de Redis, una por una.
+
+    Se arranca en el lifespan de FastAPI. La API solo encola; toda la deteccion
+    pasa por aca, asi el endpoint no espera a que se evaluen las reglas.
+    """
+    log.info("detector escuchando la cola %s", state.PING_QUEUE)
+    while True:
+        try:
+            item = await state.pop_ping()
+            if item:
+                await process_ping(item["trip_id"], item["ping"])
+        except asyncio.CancelledError:
+            log.info("detector detenido")
+            raise
+        except Exception:
+            log.exception("el detector fallo procesando un ping")
 
 
 async def process_ping(trip_id, ping):
@@ -24,7 +44,7 @@ async def process_ping(trip_id, ping):
     if is_in and trip["status"] == "en_ruta":
         if await state.once(f"arrived:{trip_id}", ttl=3600):
             db.x("UPDATE trips SET status='en_puerto' WHERE id=?", (trip_id,))
-            await bus.publish(events.TRUCK_ARRIVED, _event_payload(trip, ping, {
+            await bus.publish(events.TRUCK_ARRIVED, await _event_payload(trip, ping, {
                 "detail": "ingreso al geofence", "port_name": trip["port_name"],
                 "distance_m": round(dist)}))
         return
@@ -33,22 +53,27 @@ async def process_ping(trip_id, ping):
     if not is_in:
         is_stopped, span = rules.stopped(window)
         if is_stopped and await state.once(f"stopped:{trip_id}", ttl=900):
-            await bus.publish(events.TRUCK_STOPPED, _event_payload(trip, ping, {
+            await bus.publish(events.TRUCK_STOPPED, await _event_payload(trip, ping, {
                 "detail": "parada no planificada", "seconds": round(span)}))
             return
 
         # 3) caida abrupta de velocidad
         is_slow, drop = rules.slowdown(window)
         if is_slow and await state.once(f"slowdown:{trip_id}", ttl=600):
-            await bus.publish(events.TRUCK_SLOWDOWN, _event_payload(trip, ping, {
-                "detail": "caida abrupta de velocidad", "drop_pct": round(drop * 100)}))
+            await bus.publish(events.TRUCK_SLOWDOWN, await _event_payload(trip, ping, {
+                "detail": "caida abrupta de velocidad", "drop_pct": round(drop * 100),
+                "previous_speed": window[1]["speed"], "current_speed": window[0]["speed"]}))
 
 
-def _event_payload(trip, ping, extra):
+async def _event_payload(trip, ping, extra):
+    """Arma el payload enriquecido que consume el agente. El agente no toca la DB."""
     driver = db.one("SELECT * FROM drivers WHERE id=?", (trip["driver_id"],)) or {}
+    # en el puerto ya sabemos como se llama; en ruta hay que preguntarle a Google
+    location = trip["port_name"] if extra.get("port_name") else await geocode.label(
+        ping["lat"], ping["lon"])
     return {"trip_id": trip["id"], "worker_id": driver.get("id", trip["driver_id"]),
             "worker_name": driver.get("name", "Conductor"),
             "worker_phone": driver.get("phone", "+5491100000000"),
             "lat": ping["lat"], "lon": ping["lon"],
-            "location_label": trip["port_name"] if extra.get("port_name") else "Ruta en curso",
+            "location_label": location,
             "container": trip["container"], **extra}

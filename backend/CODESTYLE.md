@@ -242,8 +242,11 @@ Reglas:
   no en `db.py`.
 - Timestamps: `time.time()` (epoch float), columna `REAL`.
 - IDs: `uuid.uuid4().hex` recortado (`[:8]` viajes, `[:12]` llamadas)
-  o texto fijo de demo (`d1`). No usar AUTOINCREMENT salvo tablas de
+  o texto fijo de demo (`driver_01`). No usar AUTOINCREMENT salvo tablas de
   log (`pings`, `events`, `alerts`).
+  **Minimo 6 caracteres**: todo ID que viaje en un evento tiene que cumplir
+  el pattern del contrato (`^[A-Za-z0-9][A-Za-z0-9._:-]{5,127}$`), o el agente
+  descarta el payload. Por eso el conductor de demo es `driver_01` y no `d1`.
 - `init()` y `seed()` son idempotentes (`IF NOT EXISTS`,
   `INSERT OR IGNORE`).
 - El path de la DB es **absoluto** (`config.DB_PATH`). No depende del cwd.

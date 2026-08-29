@@ -1,5 +1,8 @@
 """Bus de eventos. RabbitMQ si hay RABBITMQ_URL, si no Redis pub/sub.
 
+El envelope sigue el contrato de `backend/agent/EVENTS.md`:
+    {schema_version, event_id, type, payload, ts}
+
 API unica:
     @bus.on(events.TRUCK_ARRIVED)
     async def handler(payload): ...
@@ -10,7 +13,6 @@ import asyncio
 import inspect
 import json
 import logging
-import time
 
 from . import db, events
 from .config import RABBITMQ_URL
@@ -29,6 +31,7 @@ def on(event_type):
 
 
 async def publish(event_type, payload, event_id=None, ts=None):
+    """Publica un evento. `event_id` se pasa solo para reintentar el mismo hecho."""
     msg = events.envelope(event_type, payload, event_id, ts)
     db.log_event(payload.get("trip_id"), event_type, payload)
     log.info("publish event_id=%s type=%s trip_id=%s", msg["event_id"], event_type, payload.get("trip_id"))
@@ -36,6 +39,7 @@ async def publish(event_type, payload, event_id=None, ts=None):
         await _amqp_publish(msg)
     else:
         await redis_client.publish(CHANNEL, json.dumps(msg))
+    return msg["event_id"]
 
 
 async def _dispatch(msg):

@@ -4,8 +4,7 @@ import time
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from .. import db
-from ..detector import worker as detector
+from .. import db, state
 
 router = APIRouter(prefix="/driver", tags=["driver"])
 
@@ -24,7 +23,11 @@ def current_trip(driver_id: str):
     Devuelve el ultimo viaje que no este `cerrado` y sus ultimas 5 llamadas.
     Si el conductor no tiene viaje activo devuelve `{"trip": null}`.
 
-    En la demo el `driver_id` es `d1`.
+    En la demo el `driver_id` es `driver_01`.
+
+    Los IDs tienen que cumplir el pattern del contrato de eventos
+    (`^[A-Za-z0-9][A-Za-z0-9._:-]{5,127}$`, minimo 6 caracteres): el agente
+    valida el payload y descarta lo que no matchee.
     """
     trip = db.one(
         "SELECT * FROM trips WHERE driver_id=? AND status!='cerrado' ORDER BY created_at DESC LIMIT 1",
@@ -55,9 +58,13 @@ async def ping(p: Ping):
 
     Para probar una parada sin esperar 2 minutos, bajar antes el threshold con
     `POST /ops/thresholds/stop_min_seconds?value=8`.
+
+    El endpoint **solo encola** la posicion en Redis y vuelve: el detector la
+    consume del otro lado. Por eso el `status` que devuelve es el **ultimo
+    conocido**, y todavia no refleja este ping.
     """
-    await detector.process_ping(p.trip_id, {"lat": p.lat, "lon": p.lon,
-                                            "speed": p.speed, "ts": time.time()})
+    await state.push_ping(p.trip_id, {"lat": p.lat, "lon": p.lon,
+                                      "speed": p.speed, "ts": time.time()})
     trip = db.one("SELECT status FROM trips WHERE id=?", (p.trip_id,))
     return {"ok": True, "status": trip["status"] if trip else None}
 

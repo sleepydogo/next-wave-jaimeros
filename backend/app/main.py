@@ -9,6 +9,7 @@ from . import bus, db
 from .agent import worker as agent_worker  # noqa: F401  (registra handlers)
 from .api import driver, ops, twilio_hooks
 from .detector import rules
+from .detector import worker as detector_worker
 from .dispatcher import worker as dispatcher_worker  # noqa: F401  (registra handlers)
 from .jobs import threshold_agent
 
@@ -72,7 +73,9 @@ TAGS = [
 async def lifespan(app: FastAPI):
     db.init()
     rules.seed()
-    tasks = [bus.start(), asyncio.create_task(threshold_agent.loop())]
+    tasks = [bus.start(),
+             asyncio.create_task(detector_worker.loop()),
+             asyncio.create_task(threshold_agent.loop())]
     logging.info("nextwave arriba")
     yield
     await bus.stop()

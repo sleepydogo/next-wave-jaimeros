@@ -220,7 +220,7 @@ def metrics():
 def seed():
     """Arma el escenario de demo y siembra los thresholds por defecto.
 
-    Crea el conductor `d1` (Carlos Gimenez) y un viaje nuevo en estado `en_ruta`
+    Crea el conductor `driver_01` (Carlos Gimenez) y un viaje nuevo en estado `en_ruta`
     hacia Puerto Buenos Aires Terminal 4 (-34.5745, -58.3660).
 
     Devuelve `{trip_id, driver_id, port}`. **Crea un viaje nuevo cada vez que se
@@ -229,7 +229,7 @@ def seed():
     Es el primer request a correr para probar cualquier otra cosa.
     """
     rules.seed()
-    did = "d1"
+    did = "driver_01"
     db.x("INSERT OR REPLACE INTO drivers (id,name,phone) VALUES (?,?,?)",
          (did, "Carlos Gimenez", "+5491100000000"))
     tid = uuid.uuid4().hex[:8]
