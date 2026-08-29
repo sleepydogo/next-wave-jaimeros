@@ -7,7 +7,8 @@
     { "$ref": "#/$defs/portReady" },
     { "$ref": "#/$defs/truckStopped" },
     { "$ref": "#/$defs/truckSlowdown" },
-    { "$ref": "#/$defs/callFinished" }
+    { "$ref": "#/$defs/callFinished" },
+    { "$ref": "#/$defs/alertRaised" }
   ],
   "$defs": {
     "id": {
@@ -302,6 +303,32 @@
           "properties": {
             "type": { "const": "call.finished" },
             "payload": { "$ref": "#/$defs/finishedPayload" }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+    ,"alertRaised": {
+      "type": "object",
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "const": "alert.raised" },
+            "payload": {
+              "type": "object",
+              "required": ["trip_id", "severity", "title", "body"],
+              "properties": {
+                "trip_id": { "$ref": "#/$defs/id" },
+                "severity": { "enum": ["baja", "media", "alta"] },
+                "title": { "type": "string", "minLength": 1, "maxLength": 240 },
+                "body": { "type": "string", "maxLength": 2000 },
+                "call_id": { "$ref": "#/$defs/id" },
+                "report_id": { "$ref": "#/$defs/id" }
+              },
+              "additionalProperties": false
+            }
           }
         }
       ],

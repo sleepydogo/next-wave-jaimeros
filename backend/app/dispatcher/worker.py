@@ -1,45 +1,65 @@
-"""Saca las alertas por los canales que no son voz: mail, whatsapp, etc.
+"""Persiste alertas y las entrega por email cuando corresponde.
 
-En MVP todo queda registrado en SQLite y se ve en el dashboard. WhatsApp sale
-de verdad si hay credenciales de Twilio y SIMULATE_CALLS=0.
+El dashboard es SQLite. Resend es opcional y queda simulado por defecto.
 """
 import logging
 import time
 
+import httpx
+
 from .. import bus, db, events
-from ..config import (ALERT_EMAIL, SIMULATE_CALLS, TWILIO_ACCOUNT_SID,
-                      TWILIO_AUTH_TOKEN, TWILIO_FROM)
+from ..config import ALERT_EMAIL_FROM, ALERT_EMAIL_TO, RESEND_API_KEY, SIMULATE_DISPATCH
+from ..state import once
 
 log = logging.getLogger("dispatcher")
 
 # que canales se usan segun severidad
-ROUTING = {"alta": ["email", "whatsapp", "dashboard"],
-           "media": ["email", "dashboard"],
+ROUTING = {"alta": ["email", "dashboard"], "media": ["email", "dashboard"],
            "baja": ["dashboard"]}
+
+
+def _text(value, limit):
+    return str(value or "").strip()[:limit]
+
+
+def _save(payload, severity):
+    db.x("INSERT INTO alerts (trip_id,severity,title,body,channels,ts) VALUES (?,?,?,?,?,?)",
+         (payload.get("trip_id"), severity, _text(payload.get("title"), 240),
+          _text(payload.get("body"), 2000), "email,dashboard" if severity in ("alta", "media") else "dashboard", time.time()))
+
+
+async def _send_email(payload, event_id):
+    if not await once(f"dispatch:{event_id}:email", ttl=86400):
+        return "duplicate", None
+    if SIMULATE_DISPATCH or not RESEND_API_KEY or not ALERT_EMAIL_TO:
+        log.warning("EMAIL simulado a %s | [%s] %s", ALERT_EMAIL_TO or "sin destinatario",
+                    payload["severity"], _text(payload["title"], 240))
+        return "simulated", None
+    body = {"from": ALERT_EMAIL_FROM, "to": [ALERT_EMAIL_TO],
+            "subject": f"[{payload['severity'].upper()}] {_text(payload['title'], 160)}",
+            "text": _text(payload.get("body"), 4000)}
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            response = await client.post("https://api.resend.com/emails",
+                                         headers={"Authorization": f"Bearer {RESEND_API_KEY}"}, json=body)
+            response.raise_for_status()
+        provider_id = response.json().get("id")
+        log.info("email enviado event_id=%s provider_id=%s", event_id, provider_id)
+        return "sent", provider_id
+    except Exception:
+        log.exception("resend fallo event_id=%s", event_id)
+        return "failed", None
 
 
 @bus.on(events.ALERT_RAISED)
 async def on_alert(p, msg=None):
     sev = p.get("severity", "media")
-    channels = ROUTING.get(sev, ["dashboard"])
-    db.x("INSERT INTO alerts (trip_id,severity,title,body,channels,ts) VALUES (?,?,?,?,?,?)",
-         (p.get("trip_id"), sev, p["title"], p.get("body", ""), ",".join(channels), time.time()))
-    for ch in channels:
-        _send(ch, p)
-
-
-def _send(channel, p):
-    if channel == "email":
-        # MVP: log. En prod -> SES/Resend.
-        log.warning("EMAIL a %s | [%s] %s :: %s", ALERT_EMAIL, p["severity"], p["title"], p.get("body", ""))
-    elif channel == "whatsapp":
-        if SIMULATE_CALLS or not TWILIO_ACCOUNT_SID:
-            log.warning("WHATSAPP (simulado) | [%s] %s", p["severity"], p["title"])
-            return
-        try:
-            from twilio.rest import Client
-            Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN).messages.create(
-                from_=f"whatsapp:{TWILIO_FROM}", to=f"whatsapp:{ALERT_EMAIL}",
-                body=f"[{p['severity'].upper()}] {p['title']}\n{p.get('body', '')}")
-        except Exception:
-            log.exception("whatsapp fallo")
+    if sev not in ROUTING or not p.get("trip_id") or not p.get("title") or "body" not in p:
+        log.error("alerta invalida event_id=%s", (msg or {}).get("event_id"))
+        return
+    event_id = (msg or {}).get("event_id", events.new_id("alert"))
+    _save(p, sev)
+    if "email" in ROUTING[sev]:
+        status, provider_id = await _send_email(p, event_id)
+        log.info("dispatch event_id=%s channel=email status=%s provider_id=%s",
+                 event_id, status, provider_id or "-")

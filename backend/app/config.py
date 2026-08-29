@@ -18,4 +18,9 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 SIMULATE_CALLS = os.getenv("SIMULATE_CALLS", "1") == "1"
+SIMULATE_DISPATCH = os.getenv("SIMULATE_DISPATCH", "1") == "1"
 ALERT_EMAIL = os.getenv("ALERT_EMAIL", "ops@demo.com")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+ALERT_EMAIL_FROM = os.getenv("ALERT_EMAIL_FROM", "NextWave <onboarding@resend.dev>")
+ALERT_EMAIL_TO = os.getenv("ALERT_EMAIL_TO", ALERT_EMAIL)
+VALIDATE_TWILIO_SIGNATURE = os.getenv("VALIDATE_TWILIO_SIGNATURE", "1") == "1"
