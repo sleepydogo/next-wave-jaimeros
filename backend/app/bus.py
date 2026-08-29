@@ -61,10 +61,14 @@ async def _redis_consume():
 
 # ---------- rabbitmq backend ----------
 _amqp_ex = None
+# el exchange se declara recien cuando el consumer conecta. Sin esto, un publish
+# temprano encuentra _amqp_ex en None y explota.
+_amqp_ready = asyncio.Event()
 
 
 async def _amqp_publish(msg):
     import aio_pika
+    await asyncio.wait_for(_amqp_ready.wait(), timeout=15)
     await _amqp_ex.publish(
         aio_pika.Message(json.dumps(msg).encode()), routing_key=""
     )
@@ -78,6 +82,7 @@ async def _amqp_consume():
     _amqp_ex = await ch.declare_exchange(CHANNEL, aio_pika.ExchangeType.FANOUT)
     qu = await ch.declare_queue("nextwave.workers", durable=True)
     await qu.bind(_amqp_ex)
+    _amqp_ready.set()
     log.info("bus: rabbitmq fanout %s", CHANNEL)
     async with qu.iterator() as it:
         async for m in it:

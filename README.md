@@ -10,6 +10,38 @@ mide el estado de la voz del conductor.
 
 ---
 
+## Levantar todo (un solo comando)
+
+Necesitás Docker Desktop abierto. Nada más: ni Python, ni Redis, ni instalar
+dependencias.
+
+```bash
+./start.sh
+```
+
+Levanta **Redis + RabbitMQ + el backend**, espera a que estén sanos, y deja un
+viaje de demo cargado con posiciones para que el dashboard no arranque vacío.
+
+| | |
+|---|---|
+| API | <http://localhost:8000> |
+| Swagger (todos los endpoints) | <http://localhost:8000/docs> |
+| Consola de RabbitMQ | <http://localhost:15672> — `guest` / `guest` |
+
+```bash
+./start.sh --clean               # borra la base y arranca de cero
+docker compose logs -f backend   # ver los logs
+docker compose down              # apagar
+```
+
+El código de `backend/app/` está montado en el contenedor con `--reload`: al
+guardar un archivo, el backend se reinicia solo. No hace falta rebuildear.
+
+Por defecto corre con `SIMULATE_CALLS=1`, así que **no llama por teléfono ni
+gasta plata**: la conversación se simula pero pasa por el mismo flujo.
+
+---
+
 ## Nota para el equipo
 
 Se pidió **solamente la estructura de carpetas** para arrancar por la base de
