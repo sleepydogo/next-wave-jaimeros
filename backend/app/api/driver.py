@@ -4,8 +4,7 @@ import time
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from .. import db
-from ..detector import worker as detector
+from .. import db, state
 
 router = APIRouter(prefix="/driver", tags=["driver"])
 
@@ -59,9 +58,13 @@ async def ping(p: Ping):
 
     Para probar una parada sin esperar 2 minutos, bajar antes el threshold con
     `POST /ops/thresholds/stop_min_seconds?value=8`.
+
+    El endpoint **solo encola** la posicion en Redis y vuelve: el detector la
+    consume del otro lado. Por eso el `status` que devuelve es el **ultimo
+    conocido**, y todavia no refleja este ping.
     """
-    await detector.process_ping(p.trip_id, {"lat": p.lat, "lon": p.lon,
-                                            "speed": p.speed, "ts": time.time()})
+    await state.push_ping(p.trip_id, {"lat": p.lat, "lon": p.lon,
+                                      "speed": p.speed, "ts": time.time()})
     trip = db.one("SELECT status FROM trips WHERE id=?", (p.trip_id,))
     return {"ok": True, "status": trip["status"] if trip else None}
 

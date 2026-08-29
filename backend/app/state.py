@@ -1,4 +1,4 @@
-"""Memoria volatil en Redis: ultimo ping, ventanas moviles, locks anti-spam."""
+"""Memoria volatil en Redis: cola de pings, ultimo ping, ventanas, locks."""
 import json
 
 import redis.asyncio as redis
@@ -6,6 +6,26 @@ import redis.asyncio as redis
 from .config import REDIS_URL
 
 r = redis.from_url(REDIS_URL, decode_responses=True)
+
+PING_QUEUE = "pings:queue"
+
+
+async def push_ping(trip_id, ping):
+    """La app encola su posicion. El detector la consume del otro lado."""
+    await r.lpush(PING_QUEUE, json.dumps({"trip_id": trip_id, "ping": ping}))
+
+
+async def pop_ping(timeout=5):
+    """Espera bloqueante por el proximo ping. None si no llego nada en `timeout`.
+
+    redis-py levanta TimeoutError cuando vence el BRPOP en vez de devolver nil.
+    Para nosotros eso no es un fallo, es "no llego nada": lo traducimos a None.
+    """
+    try:
+        item = await r.brpop(PING_QUEUE, timeout=timeout)
+    except redis.TimeoutError:
+        return None
+    return json.loads(item[1]) if item else None
 
 
 async def set_last(trip_id, ping):

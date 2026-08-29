@@ -1,10 +1,30 @@
-"""Consume pings de GPS y publica eventos de negocio al bus."""
+"""Consume pings de GPS desde Redis y publica eventos de negocio al bus."""
+import asyncio
 import logging
 
 from .. import bus, db, events, state
 from . import rules
 
 log = logging.getLogger("detector")
+
+
+async def loop():
+    """El detector: consume la cola de pings de Redis, una por una.
+
+    Se arranca en el lifespan de FastAPI. La API solo encola; toda la deteccion
+    pasa por aca, asi el endpoint no espera a que se evaluen las reglas.
+    """
+    log.info("detector escuchando la cola %s", state.PING_QUEUE)
+    while True:
+        try:
+            item = await state.pop_ping()
+            if item:
+                await process_ping(item["trip_id"], item["ping"])
+        except asyncio.CancelledError:
+            log.info("detector detenido")
+            raise
+        except Exception:
+            log.exception("el detector fallo procesando un ping")
 
 
 async def process_ping(trip_id, ping):
