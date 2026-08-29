@@ -1,0 +1,15 @@
+[project]
+name = "nextwave-backend"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "redis>=5.2",
+    "httpx>=0.28",
+    "python-dotenv>=1.0",
+    "twilio>=9.3",
+    "openai>=1.55",
+    "aio-pika>=9.5",
+    "python-multipart>=0.0.9",
+]
