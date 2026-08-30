@@ -238,7 +238,7 @@ function Orders() {
   const finalizadoCount = trips.filter((t) => t.estado === "finalizado").length;
 
   return (
-    <main className="page ops-workspace">
+    <main className="page ops-workspace ops-workspace--list">
       <header className="ops-page-header">
         <div>
           <h1>
@@ -1095,7 +1095,7 @@ function AlertsScreen() {
   const resueltasCount = alerts.filter((a) => a.tipo === "resuelto").length;
 
   return (
-    <main className="page ops-workspace">
+    <main className="page ops-workspace ops-workspace--list">
       <header className="ops-page-header">
         <div>
           <h1>

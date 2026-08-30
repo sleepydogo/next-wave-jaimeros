@@ -1579,6 +1579,11 @@ input:focus-visible {
   gap: 1.35rem;
 }
 
+.page.ops-workspace--list {
+  width: min(100%, var(--page-max));
+  margin-inline: auto;
+}
+
 .ops-page-header {
   display: flex;
   align-items: end;
