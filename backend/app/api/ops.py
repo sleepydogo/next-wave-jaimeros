@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 
 from .. import bus, costs, db, events, state
 from ..config import DEMO_WORKER_PHONE
-from ..detector import rules
+from ..detector import rules, ruta
 from ..jobs import threshold_agent
 
 router = APIRouter(prefix="/ops", tags=["ops"])
@@ -95,6 +95,40 @@ def calls():
     return _json(db.q("SELECT * FROM calls ORDER BY ts DESC LIMIT 50"), "outcome", "voice")
 
 
+# El origen del viaje de demo: desde ahi arranca la ruta hasta el puerto.
+ORIGEN_DEMO = (-34.7300, -58.2600)   # Avellaneda / acceso sudeste
+
+
+@router.get("/trips/{trip_id}/ruta", summary="Ruta real del viaje con sus hitos")
+async def ruta_del_viaje(trip_id: str):
+    """La ruta que maneja el camion, y donde cae cada alerta sobre ella.
+
+    Los hitos de la demo se disparan con botones, asi que todos comparten la
+    misma coordenada. Aca se reparten a lo largo del recorrido en orden
+    cronologico, uno cada ~3 km, que es como se verian en un viaje real.
+    """
+    trip = db.one("SELECT * FROM trips WHERE id=?", (trip_id,))
+    if not trip:
+        raise HTTPException(404, "no existe ese viaje")
+
+    primer_ping = db.one("SELECT lat,lon FROM pings WHERE trip_id=? ORDER BY ts ASC LIMIT 1",
+                         (trip_id,))
+    origen = ((primer_ping["lat"], primer_ping["lon"]) if primer_ping else ORIGEN_DEMO)
+    puntos, estado = await ruta.calcular(origen, (trip["port_lat"], trip["port_lon"]))
+
+    alertas = db.q("SELECT * FROM alerts WHERE trip_id=? ORDER BY ts ASC", (trip_id,))
+    posiciones = ruta.repartir(puntos, len(alertas))
+    hitos = [{**a, **pos} for a, pos in zip(alertas, posiciones)]
+
+    return {
+        "estado": estado,
+        "ruta": [{"lat": p[0], "lng": p[1]} for p in puntos],
+        "origen": {"lat": origen[0], "lng": origen[1]},
+        "destino": {"lat": trip["port_lat"], "lng": trip["port_lon"]},
+        "hitos": hitos,
+    }
+
+
 @router.get("/calls/{call_id}/audio", summary="Audio de la llamada")
 def call_audio(call_id: str):
     """El wav de la llamada, con las dos voces mezcladas.
@@ -122,6 +156,15 @@ def alerts():
     baja -> dashboard.
     """
     return db.q("SELECT * FROM alerts ORDER BY ts DESC LIMIT 50")
+
+
+@router.post("/alerts/{alert_id}/resolve", summary="Marcar una alerta como resuelta")
+def resolver_alerta(alert_id: int):
+    """El monitorista la atendio. Queda registrado cuando."""
+    if not db.one("SELECT id FROM alerts WHERE id=?", (alert_id,)):
+        raise HTTPException(404, "no existe esa alerta")
+    db.x("UPDATE alerts SET resuelta_el=? WHERE id=?", (time.time(), alert_id))
+    return {"ok": True, "id": alert_id}
 
 
 @router.get("/thresholds", summary="Thresholds actuales del detector")

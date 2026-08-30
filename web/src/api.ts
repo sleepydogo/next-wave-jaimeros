@@ -79,12 +79,15 @@ export async function getAlerts(): Promise<Alert[]> {
       conductor: String(row.driver_name ?? row.conductor ?? "—"),
       titulo: String(row.title ?? "Alerta operativa"),
       ubicacion: String(row.location ?? row.ubicacion ?? ""),
-      tipo:
-        row.severity === "alta"
+      // una alerta atendida se muestra como resuelta, sin importar su severidad
+      tipo: row.resuelta_el
+        ? "resuelto"
+        : row.severity === "alta"
           ? "emergencia"
           : row.severity === "baja"
             ? "resuelto"
             : "atencion",
+      resuelta: Boolean(row.resuelta_el),
       texto: String(row.body ?? row.text ?? ""),
       canales: String(row.channels ?? ""),
       ts,
@@ -126,6 +129,9 @@ export async function getCalls(): Promise<Call[]> {
 }
 
 export const getMetrics = () => request<Metrics>("/ops/metrics");
+export const resolverAlerta = (alertId: string) =>
+  request<{ ok: boolean }>(`/ops/alerts/${alertId}/resolve`, { method: "POST" });
+
 export const portReady = (tripId: string) =>
   request<{ ok: boolean }>(`/ops/trips/${tripId}/port-ready`, {
     method: "POST",
@@ -166,6 +172,18 @@ function hora(ts: number) {
 }
 
 // Color del punto en el mapa segun que tan grave es lo que paso.
+// El timeline lo lee el monitorista, no un desarrollador: nada de "truck.stopped"
+const TEXTO_EVENTO: Record<string, string> = {
+  "truck.arrived": "El camión llegó al puerto",
+  "truck.stopped": "El camión se detuvo en ruta",
+  "truck.slowdown": "Caída abrupta de velocidad",
+  "truck.off_route": "El camión se desvió de la ruta",
+  "port.ready": "El puerto habilitó la carga",
+  "call.finished": "El agente terminó la llamada",
+  "alert.raised": "Se levantó una alerta",
+  "truck.harsh_event": "Maniobra brusca",
+};
+
 const COLOR_POR_EVENTO: Record<string, "hito" | "atencion" | "emergencia"> = {
   "truck.arrived": "hito",         // verde: llego, carga habilitada
   "port.ready": "hito",
@@ -254,7 +272,7 @@ export async function getTripDetail(tripId: string): Promise<{
     calls: (d.calls ?? []).map((c) => conLugar(mapCall(c, positionForCall(Number(c.ts))))),
     eventos: (d.events ?? []).map((e) => ({
       hora: hora(Number(e.ts)),
-      texto: String(e.type),
+      texto: TEXTO_EVENTO[String(e.type)] ?? String(e.type),
       tipo: String(e.type) === "call.finished" ? ("call" as const) : ("event" as const),
     })),
   };
@@ -267,4 +285,60 @@ export async function getTripsConLlamadas(): Promise<Trip[]> {
     trips.map((t) => getTripDetail(t.id).catch(() => ({ calls: [], eventos: [] }))),
   );
   return trips.map((t, i) => ({ ...t, calls: detalles[i].calls, eventos: detalles[i].eventos }));
+}
+
+
+// ---- ruta real del viaje, con los hitos repartidos sobre ella ----
+
+export interface HitoRuta {
+  id: string;
+  titulo: string;
+  texto: string;
+  severidad: string;
+  hora: string;
+  km: number;
+  position: { lat: number; lng: number };
+  nivel: "hito" | "atencion" | "emergencia";
+}
+
+export interface RutaViaje {
+  ruta: { lat: number; lng: number }[];
+  origen: { lat: number; lng: number };
+  destino: { lat: number; lng: number };
+  hitos: HitoRuta[];
+  real: boolean;
+}
+
+function nivelDeAlerta(titulo: string, severidad: string): HitoRuta["nivel"] {
+  if (/emergencia|robo|peligro|fuera de ruta/i.test(titulo)) return "emergencia";
+  if (severidad === "baja" || /justificada|resuelt/i.test(titulo)) return "hito";
+  return "atencion";
+}
+
+export async function getRutaViaje(tripId: string): Promise<RutaViaje> {
+  const d = await request<{
+    estado: string;
+    ruta: { lat: number; lng: number }[];
+    origen: { lat: number; lng: number };
+    destino: { lat: number; lng: number };
+    hitos: Array<Record<string, unknown>>;
+  }>(`/ops/trips/${tripId}/ruta`);
+
+  return {
+    ruta: d.ruta ?? [],
+    origen: d.origen,
+    destino: d.destino,
+    // con "ok" la ruta viene de Google; si no, es la recta de respaldo
+    real: d.estado === "ok",
+    hitos: (d.hitos ?? []).map((h) => ({
+      id: String(h.id),
+      titulo: String(h.title ?? ""),
+      texto: String(h.body ?? ""),
+      severidad: String(h.severity ?? "media"),
+      hora: hora(Number(h.ts)),
+      km: Number(h.km ?? 0),
+      position: { lat: Number(h.lat), lng: Number(h.lon) },
+      nivel: nivelDeAlerta(String(h.title ?? ""), String(h.severity ?? "")),
+    })),
+  };
 }

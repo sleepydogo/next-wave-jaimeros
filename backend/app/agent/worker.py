@@ -93,3 +93,14 @@ async def on_call_finished(p, msg=None):
             "title": f"Triage del conductor: {triage.get('level', 'high')}",
             "body": triage.get("reason", "Se requiere intervencion humana"),
         })
+    elif p["reason"] == "emergency":
+        # La emergencia se levanto como alta apenas se detecto el evento, sin
+        # saber por que. Ahora el conductor explico y no era nada: se cierra con
+        # una alerta baja que deja registrado el motivo real (paro a comer,
+        # cargo combustible, etc).
+        motivo = (out.get("summary") or "").strip()
+        await bus.publish(events.ALERT_RAISED, {
+            "trip_id": trip_id, "severity": "baja",
+            "title": "Parada justificada por el conductor",
+            "body": motivo or "El conductor confirmo que esta todo en orden.",
+        })

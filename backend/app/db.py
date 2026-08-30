@@ -71,6 +71,9 @@ def init():
             c.execute("ALTER TABLE calls ADD COLUMN twilio_sid TEXT")
         if "audio_path" not in columns:
             c.execute("ALTER TABLE calls ADD COLUMN audio_path TEXT")
+        cols_alertas = {row[1] for row in c.execute("PRAGMA table_info(alerts)")}
+        if "resuelta_el" not in cols_alertas:
+            c.execute("ALTER TABLE alerts ADD COLUMN resuelta_el REAL")
 
 
 def q(sql, args=()):

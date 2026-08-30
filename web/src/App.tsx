@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Clock,
   Filter,
+  CheckCircle2,
   MapPin,
   Package,
   Phone,
@@ -37,6 +38,7 @@ import {
   useMap,
 } from "@vis.gl/react-google-maps";
 import { AlertaCritica } from "./AlertaCritica";
+import { getRutaViaje, resolverAlerta, type RutaViaje } from "./api";
 import { DatosProvider, useDatos } from "./useDatos";
 import { LanguageProvider, LanguageSelector } from "./i18n";
 import { ThemeProvider, ThemeToggle } from "./theme";
@@ -559,6 +561,17 @@ function MapCameraController({
 
 function RouteMap({ calls, trip }: { calls: CallLog[]; trip: Trip }) {
   const [selected, setSelected] = useState<number | null>(null);
+  // la ruta que realmente maneja el camion, con los hitos repartidos sobre ella
+  const [ruta, setRuta] = useState<RutaViaje | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    getRutaViaje(trip.id)
+      .then((r) => vivo && setRuta(r))
+      .catch(() => {});
+    return () => {
+      vivo = false;
+    };
+  }, [trip.id]);
   const navigate = useNavigate();
   const fallbackPosition = { lat: -34.6037, lng: -58.3816 };
   const truckSpot =
@@ -717,16 +730,55 @@ function RouteMap({ calls, trip }: { calls: CallLog[]; trip: Trip }) {
               );
             })}
 
+            {/* la ruta real de Google; si no se pudo traer, la recta de siempre */}
             <Polyline
-              path={[
-                truckSpot,
-                ...calls.map((c) => c.position ?? truckSpot),
-                destination,
-              ]}
-              strokeColor="#0A5C8C"
-              strokeOpacity={0.95}
+              path={
+                ruta?.ruta.length
+                  ? ruta.ruta
+                  : [truckSpot, ...calls.map((c) => c.position ?? truckSpot), destination]
+              }
+              strokeColor="#0077FC"
+              strokeOpacity={0.9}
               strokeWeight={5}
             />
+
+            {/* Un pin por alerta, repartidos cada ~3 km sobre el recorrido */}
+            {(ruta?.hitos ?? []).map((h) => (
+              <AdvancedMarker
+                key={`hito-${h.id}`}
+                position={h.position}
+                title={`km ${h.km} · ${h.titulo}`}
+                // el pin es una ALERTA: lleva al detalle de la alerta, no al de
+                // la llamada, que es otra cosa
+                onClick={() => navigate(`/alertas/${h.id}`)}
+              >
+                <div className="group relative flex cursor-pointer flex-col items-center">
+                  <div className="pointer-events-none absolute -top-14 z-40 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="rounded-lg border border-neutral-800 bg-neutral-950/95 p-2.5 text-white shadow-2xl min-w-[210px] text-left">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                        km {h.km} · {h.hora} hs
+                      </div>
+                      <p className="text-xs font-bold text-neutral-100">{h.titulo}</p>
+                      <p className="text-[11px] text-neutral-400">{h.texto}</p>
+                      <p className="mt-1 text-[10px] font-medium text-neutral-500">
+                        Clic para ver la alerta
+                      </p>
+                    </div>
+                  </div>
+                  <Pin
+                    background={
+                      h.nivel === "emergencia"
+                        ? "#C22E2E"
+                        : h.nivel === "atencion"
+                          ? "#D97706"
+                          : "#16A34A"
+                    }
+                    borderColor="#fff"
+                    glyphColor="#fff"
+                  />
+                </div>
+              </AdvancedMarker>
+            ))}
 
             {/* InfoWindow anchored directly AT the exact pin location */}
             {selectedCall && selectedPos && (
@@ -941,12 +993,16 @@ function CallDetail() {
           </p>
         )}
         <div className="transcript">
-          {call.transcript.map((l, i) => (
-            <p key={i}>
-              <span className="speaker">{l.speaker}</span>
-              {l.text}
-            </p>
-          ))}
+          {call.transcript.length === 0 ? (
+            <p className="sub">Sin transcripción para esta llamada.</p>
+          ) : (
+            call.transcript.map((l, i) => (
+              <p key={i}>
+                <span className="speaker">{l.speaker}</span>
+                {l.text}
+              </p>
+            ))
+          )}
         </div>
       </section>
       <section className="route-report ops-panel">
@@ -1007,6 +1063,7 @@ function CallDetail() {
  * evento). Tomamos la llamada mas cercana dentro de una ventana de 2 minutos.
  */
 function AlertDetail() {
+  const [resolviendo, setResolviendo] = useState(false);
   const { trips, alerts } = useDatos();
   const { alertId } = useParams();
   const navigate = useNavigate();
@@ -1028,9 +1085,37 @@ function AlertDetail() {
     <main className="page call-page ops-workspace ops-record-page">
       {trip && <Breadcrumb tripId={trip.id} order={trip.order} call={`Alerta ${alerta.hora}`} />}
       <header className="ops-record-header">
-        <span className="ops-page-meta">Alerta · {alerta.hora} hs</span>
-        <h1>{alerta.titulo}</h1>
-        <p>{alerta.texto}</p>
+        <div className="flex items-start justify-between gap-6 flex-wrap">
+          <div>
+            <span className="ops-page-meta">Alerta · {alerta.hora} hs</span>
+            <h1>{alerta.titulo}</h1>
+            <p>{alerta.texto}</p>
+          </div>
+
+          {alerta.resuelta ? (
+            <span className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 shrink-0">
+              <CheckCircle2 size={17} />
+              Resuelta
+            </span>
+          ) : (
+            <button
+              onClick={async () => {
+                setResolviendo(true);
+                try {
+                  await resolverAlerta(alerta.id);
+                  navigate("/alertas");
+                } finally {
+                  setResolviendo(false);
+                }
+              }}
+              disabled={resolviendo}
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 hover:shadow-md active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <CheckCircle2 size={17} />
+              {resolviendo ? "Marcando..." : "Marcar como resuelta"}
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="ops-record-layout ops-record-layout--alerts">

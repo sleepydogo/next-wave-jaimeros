@@ -55,8 +55,11 @@ async def start(payload, reason, detail="", source_event_id=None, event_type=Non
                "t0": time.time(), "last_ts": time.time(),
                "asr_turns": 0, "tok_in": 0, "tok_out": 0}
     await save_session(call_id, session)
+    # transcript queda NULL a proposito: el saludo todavia no fue dicho ni
+    # escuchado por nadie. Si la llamada no llega a tener conversacion real,
+    # el dashboard tiene que mostrar "sin transcripcion", no un texto inventado.
     db.x("INSERT INTO calls (id,trip_id,reason,status,transcript,ts) VALUES (?,?,?,?,?,?)",
-         (call_id, trip_id, reason, "ringing", opener, time.time()))
+         (call_id, trip_id, reason, "ringing", None, time.time()))
     log.info("llamada %s -> %s (%s)", call_id, ctx["phone"], reason)
 
     try:

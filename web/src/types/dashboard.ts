@@ -67,6 +67,7 @@ export interface Alert {
   estado?: "pendiente" | "en_gestion" | "resuelta";
   canales?: string;
   ts?: number;
+  resuelta?: boolean;
 }
 export interface Call {
   id: string;
