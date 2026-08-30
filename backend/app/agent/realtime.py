@@ -29,6 +29,10 @@ ALUCINACIONES = ("www.", "http", "subtitul", "amara.org", "gracias por ver",
 # errores que son parte del flujo normal y no hay que mostrarle a nadie
 ERRORES_BENIGNOS = ("response_cancel_not_active", "conversation_already_has_active_response")
 
+# si menos de esta fraccion del segmento tenia voz, lo que "transcribio" Whisper
+# es invento sobre ruido
+MIN_PROPORCION_VOZ = 0.15
+
 
 def _es_alucinacion(texto):
     t = (texto or "").strip().lower()
@@ -153,6 +157,8 @@ async def bridge(twilio_ws, session):
     # solo se puede cancelar una respuesta que este en curso
     respondiendo = {"v": False}
     piso = voice_signals.PisoDeRuido()
+    prop = {"v": 1.0}
+    prop = {"v": 1.0}
 
     async with websockets.connect(
         URL.format(OPENAI_REALTIME_MODEL),
@@ -179,8 +185,11 @@ async def bridge(twilio_ws, session):
                                                "audio": msg["media"]["payload"]}))
                     # el piso adaptativo se usa para quedarnos solo con los
                     # tramos con voz al analizar bostezos
-                    pcm = voice_signals.ulaw_a_pcm16(crudo)
-                    if hablando and piso.es_voz(pcm):
+                    # el piso se sigue calibrando con cada frame, pero NO se usa
+                    # para filtrar el buffer: un bostezo es suave y sostenido, y
+                    # el gate se lo comia
+                    piso.es_voz(voice_signals.ulaw_a_pcm16(crudo))
+                    if hablando:
                         buffer_voz.extend(crudo)
                 elif msg["event"] == "stop":
                     log.info("stream %s cerrado", stream_sid)
@@ -254,8 +263,11 @@ async def bridge(twilio_ws, session):
                     # hay que cortarlo, si no OpenAI no puede crear la respuesta
                     if respondiendo["v"]:
                         await oai.send(json.dumps({"type": "response.cancel"}))
-                    r = await asyncio.to_thread(analizar_tramo, bytes(buffer_voz))
+                    tramo = bytes(buffer_voz)
                     buffer_voz.clear()
+                    prop["v"] = piso.proporcion_voz(
+                        voice_signals.ulaw_a_pcm16(tramo), 8000) if tramo else 0.0
+                    r = await asyncio.to_thread(analizar_tramo, tramo)
                     if r and r["bostezo"]:
                         bostezos.append(r)
                         log.info("bostezo detectado score=%s dur=%ss",
@@ -266,7 +278,10 @@ async def bridge(twilio_ws, session):
                     transcript.append(f"AGENTE: {ev.get('transcript', '')}")
                 elif tipo == "conversation.item.input_audio_transcription.completed":
                     txt = ev.get("transcript", "")
-                    if not _es_alucinacion(txt):
+                    if prop["v"] < MIN_PROPORCION_VOZ:
+                        log.info("descarto transcripcion: el tramo era %.0f%% ruido (%r)",
+                                 (1 - prop["v"]) * 100, txt[:60])
+                    elif not _es_alucinacion(txt):
                         transcript.append(f"CONDUCTOR: {txt}")
                 elif tipo == "error":
                     code = (ev.get("error") or {}).get("code", "")
@@ -305,6 +320,7 @@ async def bridge_browser(ws, session):
     relojes = []
     respondiendo = {"v": False}
     piso = voice_signals.PisoDeRuido()
+    prop = {"v": 1.0}
 
     async with websockets.connect(
         URL.format(OPENAI_REALTIME_MODEL),
@@ -334,7 +350,8 @@ async def bridge_browser(ws, session):
                     crudo = base64.b64decode(msg["audio"])
                     await oai.send(json.dumps({"type": "input_audio_buffer.append",
                                                "audio": msg["audio"]}))
-                    if hablando["v"] and piso.es_voz(crudo):
+                    piso.es_voz(crudo)   # calibra el ambiente, no filtra
+                    if hablando["v"]:
                         buf.extend(crudo)
 
         async def hacia_el_navegador():
@@ -358,7 +375,9 @@ async def bridge_browser(ws, session):
 
                 elif t == "input_audio_buffer.speech_stopped":
                     hablando["v"] = False
-                    await ws.send_json({"type": "ambiente", **piso.estado()})
+                    prop["v"] = piso.proporcion_voz(bytes(buf), 24000) if buf else 0.0
+                    await ws.send_json({"type": "ambiente", **piso.estado(),
+                                        "voz_pct": round(prop["v"] * 100)})
                     for r in relojes:
                         r.cancel()
                     relojes.clear()
@@ -380,7 +399,12 @@ async def bridge_browser(ws, session):
                                         "texto": ev.get("transcript", "")})
                 elif t == "conversation.item.input_audio_transcription.completed":
                     txt = ev.get("transcript", "")
-                    if not _es_alucinacion(txt):
+                    if prop["v"] < MIN_PROPORCION_VOZ:
+                        log.info("descarto transcripcion: %.0f%% ruido (%r)",
+                                 (1 - prop["v"]) * 100, txt[:60])
+                        await ws.send_json({"type": "info", "text":
+                                            "descarte una transcripcion: el tramo era casi todo ruido"})
+                    elif not _es_alucinacion(txt):
                         await ws.send_json({"type": "dijo", "quien": "VOS", "texto": txt})
                 elif t == "error":
                     code = (ev.get("error") or {}).get("code", "")

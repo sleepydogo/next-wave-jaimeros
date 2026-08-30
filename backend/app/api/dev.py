@@ -88,7 +88,8 @@ async function arrancar() {
     else if (m.type === 'error') escribir('ERROR', ' ' + m.text, 'err');
     else if (m.type === 'info') escribir('', m.text, 'voz');
     else if (m.type === 'ambiente') estado.textContent =
-        'ambiente calibrado: piso de ruido ' + m.piso + ' · umbral de voz ' + m.umbral;
+        'ambiente: piso ' + m.piso + ' · umbral ' + m.umbral +
+        (m.voz_pct !== undefined ? ' · ultimo tramo ' + m.voz_pct + '% voz' : '');
     else if (m.type === 'voz') {
       const a = m.analisis;
       escribir('BOSTEZO', ' detectado (score ' + a.score + ', ' +

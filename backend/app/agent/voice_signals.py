@@ -212,3 +212,18 @@ class PisoDeRuido:
     def estado(self):
         return {"piso": round(self.piso, 4),
                 "umbral": round(max(self.piso * self.factor, self.minimo), 4)}
+
+    def proporcion_voz(self, pcm16: bytes, rate: int) -> float:
+        """Que fraccion del tramo tiene voz de verdad, segun el piso ya calibrado.
+
+        Sirve para decidir si una transcripcion es confiable: si el segmento era
+        casi todo ruido, Whisper no transcribio, invento.
+        """
+        x = np.frombuffer(pcm16, dtype=np.int16).astype(np.float32) / 32768.0
+        n = max(1, int(rate * VENTANA))
+        if len(x) < n:
+            return 0.0
+        fr = x[:len(x) // n * n].reshape(-1, n)
+        rms = np.sqrt((fr ** 2).mean(axis=1))
+        umbral = max(self.piso * self.factor, self.minimo)
+        return float((rms > umbral).mean())
