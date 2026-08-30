@@ -24,7 +24,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 #               puede interrumpir. Mas natural y bastante mas caro.
 VOICE_MODE = os.getenv("VOICE_MODE", "gather")
 OPENAI_REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime-2.1-mini")
-REALTIME_VOICE = os.getenv("REALTIME_VOICE", "coral")
+REALTIME_VOICE = os.getenv("REALTIME_VOICE", "cedar")
 AGENT_NAME = os.getenv("AGENT_NAME", "Marina")
 # velocidad de habla: 1.0 es el default, 0.9 suena mas pausado y humano
 REALTIME_SPEED = float(os.getenv("REALTIME_SPEED", "1.25"))

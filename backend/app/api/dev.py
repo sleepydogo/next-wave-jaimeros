@@ -7,8 +7,7 @@ from fastapi import APIRouter, WebSocket
 from fastapi.responses import HTMLResponse
 
 from ..agent import realtime
-from ..config import (AGENT_NAME, INTERRUPT_AFTER_S, OPENAI_REALTIME_MODEL,
-                      REALTIME_VOICE)
+from ..config import AGENT_NAME, OPENAI_REALTIME_MODEL, REALTIME_VOICE
 
 router = APIRouter(prefix="/dev", tags=["dev"])
 
@@ -35,12 +34,15 @@ PAGINA = """<!doctype html><meta charset=utf-8><title>Probar la voz</title>
 <h1>Probar la voz del agente</h1>
 <div class=meta>modelo <b>__MODELO__</b> · voz <b>__VOZ__</b> · agente <b>__AGENTE__</b></div>
 <button id=b>Hablar</button>
-<div class=meta>proba bostezar · el agente solo se corta si sostenes la voz __CORTE__s</div>
+<div class=meta>proba bostezar cerca del microfono</div>
 <div id=estado>permiti el microfono cuando lo pida</div>
 <div id=log></div>
 <script>
-const SR = 24000;                 // el sample rate que espera la sesion de OpenAI
+const DESTINO = 24000;            // unico sample rate que acepta OpenAI Realtime
+const SR = 24000;                 // el audio que llega del agente
 let ctx, ws, stream, node, on = false;
+let frames = 0, enviados = 0;
+const descartados = {ws: 0, agente: 0};
 let cola = [], siguiente = 0, sonando = [];
 const log = document.getElementById('log');
 const estado = document.getElementById('estado');
@@ -69,6 +71,32 @@ function reproducir(b64) {
   src.onended = () => sonando = sonando.filter(s => s !== src);
 }
 
+// El microfono se pausa mientras suena el agente, si no el parlante entra por
+// el mic y OpenAI cree que lo estas interrumpiendo. Lo calculamos con el reloj
+// del audio y no con un flag del servidor: si un mensaje se pierde, el flag
+// queda trabado y el microfono no vuelve nunca.
+// OpenAI solo acepta 24 kHz. Chrome suele capturar a 48 kHz aunque le pidamos
+// otra cosa, asi que bajamos el sample rate nosotros antes de enviar. Sin esto
+// el audio le llega al doble de velocidad y no transcribe nada.
+function a24k(f, rateOrigen) {
+  if (rateOrigen === DESTINO) return f;
+  const ratio = rateOrigen / DESTINO;
+  const n = Math.floor(f.length / ratio);
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const pos = i * ratio;
+    const i0 = Math.floor(pos);
+    const i1 = Math.min(i0 + 1, f.length - 1);
+    const t = pos - i0;
+    out[i] = f[i0] * (1 - t) + f[i1] * t;   // interpolacion lineal
+  }
+  return out;
+}
+
+function agenteSonando() {
+  return !!ctx && siguiente > ctx.currentTime + 0.05;
+}
+
 function cortar() {           // el usuario interrumpio: tirar lo que quedaba sonando
   sonando.forEach(s => { try { s.stop(); } catch (e) {} });
   sonando = []; siguiente = 0;
@@ -79,15 +107,30 @@ async function arrancar() {
   stream = await navigator.mediaDevices.getUserMedia({audio:{
     echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
   ws = new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/dev/voz/ws');
-  ws.onopen = () => estado.textContent = 'conectado, hablá cuando quieras';
+  ws.onerror = e => console.error('[ws] error', e);
+  ws.onclose = e => console.warn('[ws] cerrado', e.code, e.reason);
+  ws.onopen = () => {
+    // Chrome suele ignorar el sampleRate pedido y usar el nativo (48k). Si le
+    // decimos a OpenAI un rate que no es, el audio le llega acelerado y no
+    // transcribe nada. Le mandamos el real.
+    ws.send(JSON.stringify({type: 'init', rate: ctx.sampleRate}));
+    estado.textContent = 'conectado · micrófono ' + ctx.sampleRate +
+      ' Hz → 24000 Hz · hablá cuando quieras';
+  };
   ws.onmessage = e => {
     const m = JSON.parse(e.data);
+    if (m.type !== 'audio') console.log('[<- server]', m.type, m);
     if (m.type === 'audio') reproducir(m.audio);
     else if (m.type === 'clear') cortar();
     else if (m.type === 'dijo' && m.texto) escribir(m.quien, ' ' + m.texto);
     else if (m.type === 'error') escribir('ERROR', ' ' + m.text, 'err');
     else if (m.type === 'info') escribir('', m.text, 'voz');
     else if (m.type === 'estado') escribir('', '· ' + m.texto, 'voz');
+    else if (m.type === 'hablando') {
+      estado.textContent = m.v
+        ? 'el agente esta hablando (micrófono en pausa)'
+        : 'te escucho, hablá cuando quieras';
+    }
     else if (m.type === 'ambiente') estado.textContent =
         'ambiente: piso ' + m.piso + ' · umbral ' + m.umbral +
         (m.voz_pct !== undefined ? ' · ultimo tramo ' + m.voz_pct + '% voz' : '');
@@ -97,18 +140,39 @@ async function arrancar() {
           a.duracion_voz_s + 's, ' + a.centroide_hz + ' Hz)', 'bostezo');
     }
   };
+  console.log('[audio] ctx.sampleRate =', ctx.sampleRate,
+              '| pista:', stream.getAudioTracks()[0]?.label,
+              '| settings:', stream.getAudioTracks()[0]?.getSettings());
   const src = ctx.createMediaStreamSource(stream);
   node = ctx.createScriptProcessor(2048, 1, 1);
   node.onaudioprocess = ev => {
-    if (!ws || ws.readyState !== 1) return;
-    const f = ev.inputBuffer.getChannelData(0);
+    const crudo = ev.inputBuffer.getChannelData(0);
+    // nivel del microfono: si esto es ~0 el audio no llega al procesador
+    let suma = 0;
+    for (let i = 0; i < crudo.length; i++) suma += crudo[i] * crudo[i];
+    const rms = Math.sqrt(suma / crudo.length);
+    frames++;
+    if (frames % 20 === 0) {
+      console.log('[mic] frame', frames, 'rms', rms.toFixed(4),
+                  '| enviados', enviados, '| agenteSonando', agenteSonando(),
+                  '| ws', ws && ws.readyState);
+    }
+    if (!ws || ws.readyState !== 1) { descartados.ws++; return; }
+    if (agenteSonando()) { descartados.agente++; return; }
+    const f = a24k(crudo, ctx.sampleRate);
     let s = '';
     for (let i = 0; i < f.length; i++) {           // Float32 -> PCM16 little endian
       let v = Math.max(-1, Math.min(1, f[i])) * 32767;
       v = v < 0 ? v + 65536 : v;
       s += String.fromCharCode(v & 255, (v >> 8) & 255);
     }
-    ws.send(JSON.stringify({type:'audio', audio: btoa(s)}));
+    const b64 = btoa(s);
+    enviados++;
+    if (enviados === 1 || enviados % 40 === 0) {
+      console.log('[-> openai] chunk', enviados, 'muestras', f.length,
+                  'bytes b64', b64.length, '| descartados', JSON.stringify(descartados));
+    }
+    ws.send(JSON.stringify({type:'audio', audio: b64}));
   };
   src.connect(node); node.connect(ctx.destination);
 }
@@ -135,8 +199,7 @@ document.getElementById('b').onclick = async e => {
 def voz():
     """Pagina para hablarle al agente desde la PC, sin gastar llamadas."""
     return (PAGINA.replace("__MODELO__", OPENAI_REALTIME_MODEL)
-            .replace("__VOZ__", REALTIME_VOICE).replace("__AGENTE__", AGENT_NAME)
-            .replace("__CORTE__", str(INTERRUPT_AFTER_S)))
+            .replace("__VOZ__", REALTIME_VOICE).replace("__AGENTE__", AGENT_NAME))
 
 
 @router.websocket("/voz/ws")
