@@ -7,6 +7,7 @@ import {
   useLocation,
   useNavigate,
   useParams,
+  useSearchParams,
 } from "react-router-dom";
 import {
   Activity,
@@ -23,6 +24,7 @@ import {
   Play,
   RotateCcw,
   Search,
+  Gauge,
   Truck,
 } from "lucide-react";
 import {
@@ -35,6 +37,9 @@ import {
   useMap,
 } from "@vis.gl/react-google-maps";
 import { DatosProvider, useDatos } from "./useDatos";
+import { LanguageProvider, LanguageSelector } from "./i18n";
+import { ThemeProvider, ThemeToggle } from "./theme";
+import { OperationsHome } from "./components/dashboard/OperationsHome";
 import type { CallLog, TripState } from "./types/dashboard";
 import "./App.css";
 import "./route.css";
@@ -94,51 +99,58 @@ function Header() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const isPedidos = location.pathname === "/" || location.pathname.startsWith("/pedidos");
+  const isHome = location.pathname === "/";
+  const isPedidos = location.pathname.startsWith("/pedidos");
   const isAlertas = location.pathname.startsWith("/alertas");
-
-  const criticalCount = alerts.filter((a) => a.tipo === "emergencia" || a.tipo === "atencion").length;
+  const criticalCount = alerts.filter((alert) => alert.tipo === "emergencia").length;
 
   return (
-    <header className="topbar flex items-center justify-between px-4 sm:px-6 py-2.5 bg-[#0B132B] text-white shadow-md border-b border-slate-800">
-      <div className="flex items-center gap-6 sm:gap-8">
-        <div
+    <header className="topbar">
+      <div className="topbar__primary">
+        <button
+          type="button"
           onClick={() => navigate("/")}
-          className="brand flex items-center gap-2 cursor-pointer font-extrabold text-base sm:text-lg tracking-tight hover:opacity-90 transition-opacity select-none"
+          className="brand"
+          aria-label="Ir al inicio"
         >
-          <span className="brand-mark bg-[#0077FC] text-white px-2 py-0.5 rounded text-xs font-black tracking-tight">21</span>
-          <span className="text-white font-extrabold flex items-center gap-1.5">
+          <span className="brand-mark">21</span>
+          <span className="brand-name">
             <span>21agents</span>
-            <span className="text-[10px] font-bold text-blue-400 bg-blue-500/20 px-1.5 py-0.5 rounded border border-blue-400/30 uppercase tracking-wider">Ops</span>
+            <span className="brand-product">Ops</span>
           </span>
-        </div>
+        </button>
 
-        {/* Links de Navegación Principal */}
-        <nav className="flex items-center gap-1 sm:gap-2">
+        <nav className="primary-nav" aria-label="Navegación principal">
           <button
+            type="button"
             onClick={() => navigate("/")}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              isPedidos
-                ? "bg-[#0077FC] text-white shadow-xs"
-                : "text-slate-300 hover:text-white hover:bg-slate-800/60"
-            }`}
+            className="primary-nav__item"
+            aria-current={isHome ? "page" : undefined}
           >
-            <Package size={15} />
-            <span>Pedidos</span>
+            <Gauge size={15} />
+            <span>Inicio</span>
           </button>
 
           <button
+            type="button"
+            onClick={() => navigate("/pedidos")}
+            className="primary-nav__item"
+            aria-current={isPedidos ? "page" : undefined}
+          >
+            <Package size={15} />
+            <span>Traslados</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => navigate("/alertas")}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              isAlertas
-                ? "bg-[#0077FC] text-white shadow-xs"
-                : "text-slate-300 hover:text-white hover:bg-slate-800/60"
-            }`}
+            className="primary-nav__item primary-nav__item--alert"
+            aria-current={isAlertas ? "page" : undefined}
           >
             <Bell size={15} />
             <span>Alertas</span>
             {criticalCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.2 text-[10px] font-extrabold rounded-full bg-red-500 text-white animate-pulse">
+              <span className="critical-count" aria-label={`${criticalCount} alertas críticas`}>
                 {criticalCount}
               </span>
             )}
@@ -146,9 +158,10 @@ function Header() {
         </nav>
       </div>
 
-      <div className="live flex items-center gap-2 text-xs text-emerald-400 font-semibold">
-        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-        <span className="hidden sm:inline">Monitoreo en vivo</span>
+      <div className="topbar__utilities">
+        <span className="live"><i aria-hidden="true" /><span>Monitoreo en vivo</span></span>
+        <ThemeToggle />
+        <LanguageSelector />
       </div>
     </header>
   );
@@ -173,7 +186,7 @@ function Breadcrumb({
   const navigate = useNavigate();
   return (
     <nav className="breadcrumb" aria-label="Navegación">
-      <button onClick={() => navigate("/")}>Pedidos</button>
+      <button onClick={() => navigate("/pedidos")}>Traslados</button>
       <ChevronRight size={13} />
       {call ? (
         <>
@@ -271,7 +284,7 @@ function Orders() {
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         <button
           onClick={() => setStatusFilter("todos")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-[background-color,color,border-color,transform,opacity] cursor-pointer ${
             statusFilter === "todos"
               ? "bg-white border-[#0077FC] shadow-md ring-2 ring-[#0077FC]/20"
               : "bg-white/80 border-neutral-200 hover:border-neutral-300 hover:bg-white"
@@ -285,7 +298,7 @@ function Orders() {
 
         <button
           onClick={() => setStatusFilter("atencion")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-[background-color,color,border-color,transform,opacity] cursor-pointer ${
             statusFilter === "atencion"
               ? "bg-red-50 border-red-500 shadow-md ring-2 ring-red-500/20"
               : "bg-white/80 border-neutral-200 hover:border-red-200 hover:bg-red-50/40"
@@ -299,7 +312,7 @@ function Orders() {
 
         <button
           onClick={() => setStatusFilter("en_camino")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-[background-color,color,border-color,transform,opacity] cursor-pointer ${
             statusFilter === "en_camino"
               ? "bg-emerald-50 border-emerald-500 shadow-md ring-2 ring-emerald-500/20"
               : "bg-white/80 border-neutral-200 hover:border-emerald-200 hover:bg-emerald-50/40"
@@ -313,7 +326,7 @@ function Orders() {
 
         <button
           onClick={() => setStatusFilter("carga_habilitada")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-[background-color,color,border-color,transform,opacity] cursor-pointer ${
             statusFilter === "carga_habilitada"
               ? "bg-blue-50 border-blue-500 shadow-md ring-2 ring-blue-500/20"
               : "bg-white/80 border-neutral-200 hover:border-blue-200 hover:bg-blue-50/40"
@@ -327,7 +340,7 @@ function Orders() {
 
         <button
           onClick={() => setStatusFilter("finalizado")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-[background-color,color,border-color,transform,opacity] cursor-pointer ${
             statusFilter === "finalizado"
               ? "bg-slate-100 border-slate-500 shadow-md ring-2 ring-slate-500/20"
               : "bg-white/80 border-neutral-200 hover:border-slate-300 hover:bg-slate-50"
@@ -350,7 +363,7 @@ function Orders() {
             placeholder="Buscar por pedido #, patente, conductor u origen/destino..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0077FC] focus:border-transparent transition-all"
+            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0077FC] focus:border-transparent transition-[background-color,border-color]"
           />
           {searchTerm && (
             <button
@@ -374,7 +387,7 @@ function Orders() {
             <button
               key={tab.id}
               onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-[background-color,color] whitespace-nowrap cursor-pointer ${
                 statusFilter === tab.id
                   ? "bg-[#0077FC] text-white shadow-xs"
                   : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
@@ -503,7 +516,7 @@ function Orders() {
                             e.stopPropagation();
                             navigate(`/pedidos/${t.id}`);
                           }}
-                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-all group-hover:scale-105 group-hover:shadow-md cursor-pointer ${
+                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-[background-color,color,border-color,transform] group-hover:-translate-y-0.5 group-hover:shadow-md cursor-pointer ${
                             isAttention
                               ? "bg-red-600 hover:bg-red-700 text-white"
                               : "bg-[#0077FC] hover:bg-[#0055CC] text-white"
@@ -687,11 +700,11 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
                   <div className="group relative flex cursor-pointer flex-col items-center">
                     {/* Animated Pulse Ring */}
                     <div
-                      className={`absolute -inset-3.5 rounded-full opacity-70 transition-all ${isAttention ? "bg-amber-400 animate-ping" : isCritical ? "bg-red-500 animate-ping" : "bg-teal-400 group-hover:animate-ping"}`}
+                      className={`absolute -inset-3.5 rounded-full opacity-70 transition-[background-color,opacity] ${isAttention ? "bg-amber-400 animate-ping" : isCritical ? "bg-red-500 animate-ping" : "bg-teal-400 group-hover:animate-ping"}`}
                     />
 
                     {/* Rich Hover Tooltip */}
-                    <div className="pointer-events-none absolute -top-14 z-40 opacity-0 transition-all duration-200 group-hover:opacity-100 group-hover:-translate-y-1">
+                    <div className="pointer-events-none absolute -top-14 z-40 opacity-0 transition-[opacity,transform] duration-200 group-hover:opacity-100 group-hover:-translate-y-1">
                       <div className="flex flex-col gap-0.5 rounded-lg border border-neutral-800 bg-neutral-950/95 p-2.5 text-white shadow-2xl backdrop-blur-md min-w-[210px]">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
@@ -779,7 +792,7 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
                     onClick={() =>
                       navigate(`/pedidos/${tripId}/llamadas/${selectedCall.id}`)
                     }
-                    className="mt-3 flex w-full items-center justify-between rounded-lg bg-[#0077FC] px-3 py-2 text-xs font-bold text-white shadow transition-all hover:bg-[#0055CC] hover:shadow-md cursor-pointer"
+                    className="mt-3 flex w-full items-center justify-between rounded-lg bg-[#0077FC] px-3 py-2 text-xs font-bold text-white shadow transition-[background-color,transform] hover:bg-[#0055CC] hover:-translate-y-0.5 cursor-pointer"
                   >
                     <span>Ver log y transcripción completa</span>
                     <ChevronRight size={14} />
@@ -1094,8 +1107,11 @@ function AlertDetail() {
 function AlertsScreen() {
   const { alerts } = useDatos();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
-  const [severityFilter, setSeverityFilter] = useState<string>("todas");
+  const [severityFilter, setSeverityFilter] = useState<string>(() =>
+    searchParams.get("severity") === "critical" ? "criticas" : "todas",
+  );
 
   // Ordenar: Alertas de emergencia/atención primero
   const sortedAlerts = [...alerts].sort((a, b) => {
@@ -1150,7 +1166,7 @@ function AlertsScreen() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <button
           onClick={() => setSeverityFilter("todas")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-[background-color,color,border-color,transform,opacity] cursor-pointer ${
             severityFilter === "todas"
               ? "bg-white border-[#0077FC] shadow-md ring-2 ring-[#0077FC]/20"
               : "bg-white/80 border-neutral-200 hover:border-neutral-300 hover:bg-white"
@@ -1164,7 +1180,7 @@ function AlertsScreen() {
 
         <button
           onClick={() => setSeverityFilter("criticas")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-[background-color,color,border-color,transform,opacity] cursor-pointer ${
             severityFilter === "criticas"
               ? "bg-red-50 border-red-500 shadow-md ring-2 ring-red-500/20"
               : "bg-white/80 border-neutral-200 hover:border-red-200 hover:bg-red-50/40"
@@ -1178,7 +1194,7 @@ function AlertsScreen() {
 
         <button
           onClick={() => setSeverityFilter("atencion")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-[background-color,color,border-color,transform,opacity] cursor-pointer ${
             severityFilter === "atencion"
               ? "bg-amber-50 border-amber-500 shadow-md ring-2 ring-amber-500/20"
               : "bg-white/80 border-neutral-200 hover:border-amber-200 hover:bg-amber-50/40"
@@ -1192,7 +1208,7 @@ function AlertsScreen() {
 
         <button
           onClick={() => setSeverityFilter("resueltas")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-[background-color,color,border-color,transform,opacity] cursor-pointer ${
             severityFilter === "resueltas"
               ? "bg-emerald-50 border-emerald-500 shadow-md ring-2 ring-emerald-500/20"
               : "bg-white/80 border-neutral-200 hover:border-emerald-200 hover:bg-emerald-50/40"
@@ -1214,7 +1230,7 @@ function AlertsScreen() {
             placeholder="Buscar alerta por título, pedido, patente o ubicación..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0077FC] focus:border-transparent transition-all"
+            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0077FC] focus:border-transparent transition-[background-color,border-color]"
           />
           {searchTerm && (
             <button
@@ -1236,7 +1252,7 @@ function AlertsScreen() {
             <button
               key={tab.id}
               onClick={() => setSeverityFilter(tab.id)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-[background-color,color] whitespace-nowrap cursor-pointer ${
                 severityFilter === tab.id
                   ? "bg-[#0077FC] text-white shadow-xs"
                   : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
@@ -1375,7 +1391,7 @@ function AlertsScreen() {
                             e.stopPropagation();
                             navigate(`/alertas/${a.id}`);
                           }}
-                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-all group-hover:scale-105 group-hover:shadow-md cursor-pointer ${
+                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-[background-color,color,border-color,transform] group-hover:-translate-y-0.5 group-hover:shadow-md cursor-pointer ${
                             isCritical
                               ? "bg-red-600 hover:bg-red-700 text-white"
                               : "bg-[#0077FC] hover:bg-[#0055CC] text-white"
@@ -1416,24 +1432,26 @@ function AlertsScreen() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      {/* el provider envuelve al Layout: el Header muestra el contador de
-          alertas y tambien necesita los datos vivos */}
-      <DatosProvider>
-        <Layout>
-          <Routes>
-          <Route path="/" element={<Orders />} />
-          <Route path="/alertas" element={<AlertsScreen />} />
-          <Route path="/alertas/:alertId" element={<AlertDetail />} />
-          <Route path="/pedidos/:tripId" element={<Detail />} />
-          <Route
-            path="/pedidos/:tripId/llamadas/:callId"
-            element={<CallDetail />}
-          />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Layout>
-      </DatosProvider>
-    </BrowserRouter>
+    <ThemeProvider>
+      <LanguageProvider>
+        <BrowserRouter>
+          <DatosProvider>
+            <div data-i18n-root>
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<OperationsHome />} />
+                  <Route path="/pedidos" element={<Orders />} />
+                  <Route path="/alertas" element={<AlertsScreen />} />
+                  <Route path="/alertas/:alertId" element={<AlertDetail />} />
+                  <Route path="/pedidos/:tripId" element={<Detail />} />
+                  <Route path="/pedidos/:tripId/llamadas/:callId" element={<CallDetail />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Layout>
+            </div>
+          </DatosProvider>
+        </BrowserRouter>
+      </LanguageProvider>
+    </ThemeProvider>
   );
 }

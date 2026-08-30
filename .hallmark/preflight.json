@@ -1,0 +1,9 @@
+{
+  "date": "2026-08-30",
+  "framework": "React 19 + Vite 8 + Tailwind CSS 4",
+  "font_stack": "Manrope via Google Fonts",
+  "palette": "Legacy blue #0077FC with light neutral surfaces",
+  "motion": "CSS-only; no motion library",
+  "spacing": "Tailwind utilities plus existing component CSS",
+  "design_system": null
+}

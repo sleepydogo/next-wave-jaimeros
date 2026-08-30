@@ -1,7 +1,14 @@
+@import "../tokens.css";
 @import "tailwindcss";
 html,
 body,
 #root {
   min-height: 100%;
   margin: 0;
+}
+
+html,
+body {
+  overflow-x: clip;
+  background: var(--color-paper);
 }
