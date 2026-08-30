@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import bus, db
 from .agent import worker as agent_worker  # noqa: F401  (registra handlers)
-from .api import driver, ops, twilio_hooks
+from .api import dev, driver, ops, twilio_hooks
 from .detector import rules
 from .detector import worker as detector_worker
 from .dispatcher import worker as dispatcher_worker  # noqa: F401  (registra handlers)
@@ -95,6 +95,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 app.include_router(driver.router)
 app.include_router(ops.router)
 app.include_router(twilio_hooks.router)
+app.include_router(dev.router)
 
 
 @app.get("/health", tags=["salud"], summary="Ping de vida")

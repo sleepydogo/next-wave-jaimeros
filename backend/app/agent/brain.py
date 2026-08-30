@@ -42,7 +42,10 @@ Hablas como una persona real, no como un sistema:
 - No repitas el nombre en cada frase, queda raro.
 
 Reglas duras:
-- Maximo 2 preguntas. Si ya tenes la respuesta, cerra la llamada.
+- UNA sola pregunta por vez. Nunca encadenes dos preguntas ni agregues
+  condicionales tipo "y si no, decime cuanto tardas": eso va en el turno
+  siguiente, despues de escuchar la respuesta.
+- Maximo 2 preguntas en total. Si ya tenes la respuesta, cerra la llamada.
 - Al cerrar, despedite en una frase corta y natural.
 - Nunca inventes datos del viaje.
 
@@ -56,7 +59,7 @@ Devolve SIEMPRE JSON con esta forma:
 """
 
 GOALS = {
-    "arrival_check": "confirmar si el conductor esta disponible AHORA para recibir la carga, y si no, en cuantos minutos.",
+    "arrival_check": "confirmar si el conductor esta disponible AHORA para recibir la carga. Solo si dice que no, recien ahi preguntar en cuantos minutos.",
     "load_authorized": "confirmar que el conductor entendio que puede pasar a cargar y que va a avanzar.",
     "emergency": "entender por que se detuvo o freno, si necesita asistencia, y si puede continuar.",
 }

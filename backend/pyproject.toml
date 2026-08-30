@@ -13,6 +13,7 @@ dependencies = [
     "aio-pika>=9.5",
     "python-multipart>=0.0.9",
     "websockets>=13",
+    "numpy>=1.26",
 ]
 
 [tool.setuptools.packages.find]

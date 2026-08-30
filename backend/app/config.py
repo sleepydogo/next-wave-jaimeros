@@ -24,6 +24,15 @@ VOICE_MODE = os.getenv("VOICE_MODE", "gather")
 OPENAI_REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime-2.1-mini")
 REALTIME_VOICE = os.getenv("REALTIME_VOICE", "coral")
 AGENT_NAME = os.getenv("AGENT_NAME", "Marina")
+# velocidad de habla: 1.0 es el default, 0.9 suena mas pausado y humano
+REALTIME_SPEED = float(os.getenv("REALTIME_SPEED", "1.25"))
+# cuanto se apura en contestar: low deja hablar mas, high interrumpe antes
+REALTIME_EAGERNESS = os.getenv("REALTIME_EAGERNESS", "low")
+# cuanto tiene que sostener la voz el conductor para cortar al agente. Con 0 se
+# comporta como antes: cualquier ruido lo interrumpe.
+INTERRUPT_AFTER_S = float(os.getenv("INTERRUPT_AFTER_S", "3.0"))
+# puerta de ruido: por debajo de este RMS (0..1) se considera ruido de fondo
+NOISE_GATE = float(os.getenv("NOISE_GATE", "0.02"))
 
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
 
