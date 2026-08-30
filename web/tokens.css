@@ -26,6 +26,11 @@
   --color-warning-surface: #2e2618;
   --color-success: #1e8e5a;
   --color-success-surface: #172b22;
+  --color-chart-surface: #084a70;
+  --color-chart-line: #ffffff;
+  --color-chart-fill: #67acd0;
+  --color-chart-muted: #cfe3ee;
+  --color-chart-grid: rgba(255, 255, 255, 0.16);
 
   --font-display: -apple-system, "SF Pro Display", "Inter", system-ui, sans-serif;
   --font-body: -apple-system, "SF Pro Display", "Inter", system-ui, sans-serif;
@@ -75,7 +80,7 @@
   --z-tooltip: 600;
 
   /* Compatibility aliases for the existing screens. */
-  --color-white: var(--color-accent-ink);
+  --color-white: var(--color-paper-2);
   --color-surface-muted: var(--color-paper);
   --color-primary: var(--color-accent-fill);
   --color-primary-300: var(--color-accent-hover);
@@ -119,4 +124,9 @@
   --color-warning-surface: #fbf4e7;
   --color-success: #1e8e5a;
   --color-success-surface: #eaf6f0;
+  --color-chart-surface: #084a70;
+  --color-chart-line: #ffffff;
+  --color-chart-fill: #67acd0;
+  --color-chart-muted: #cfe3ee;
+  --color-chart-grid: rgba(255, 255, 255, 0.16);
 }

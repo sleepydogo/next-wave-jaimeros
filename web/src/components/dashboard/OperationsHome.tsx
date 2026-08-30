@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowUpRight, Clock3, PhoneCall, ShieldAlert, Truck } fr
 import { Link } from "react-router-dom";
 import { useDatos } from "../../useDatos";
 import { useLanguage } from "../../i18n";
+import { OperationsPulse } from "./OperationsPulse";
 
 function MetricValue({ value, suffix = "" }: { value: number; suffix?: string }) {
   const { locale } = useLanguage();
@@ -41,22 +42,22 @@ export function OperationsHome() {
   const completedTrips = trips.filter((trip) => trip.estado === "finalizado");
   const criticalAlerts = alerts.filter((alert) => alert.tipo === "emergencia");
   const agentCalls = trips.reduce((total, trip) => total + trip.calls.length, 0);
+  const activityPoints = trips
+    .flatMap((trip) => trip.calls.map((call) => ({ time: call.time, level: call.level })))
+    .sort((a, b) => a.time.localeCompare(b.time));
   const timeSavedMinutes = agentCalls * 12 + completedTrips.length * 18;
   const primaryAlert = criticalAlerts[0];
   const copy = isEnglish
     ? {
         context: "Operations center · mock data",
-        title: "Act where impact is highest.",
-        intro: "The agent monitors the operation. The team steps in only when a critical alert requires a human decision.",
-        navLabel: "Operational shortcuts",
-        priority: `Human priority · ${criticalAlerts.length} critical`,
-        alerts: "Handle alerts",
+        title: "Intervene only when impact is critical.",
+        intro: "The agent monitors every transfer. Your team gets a clear signal only when a human decision is required.",
+        priority: `${criticalAlerts.length} critical alert requires attention`,
+        alerts: "Handle critical alert",
         noAlerts: "No critical alerts pending",
-        review: "Review now",
         tracking: "Operational tracking",
         transfers: "View transfers",
         activeTransfers: `${activeTrips.length} active transfers · route, ETA and activity`,
-        mockUpdate: "Automatic updates with mock data",
         openTransfers: "Open transfers",
         metrics: "Agent metrics",
         demo: "Demo estimates",
@@ -69,17 +70,14 @@ export function OperationsHome() {
       }
     : {
         context: "Centro operativo · datos mock",
-        title: "Actuá donde hay impacto.",
-        intro: "El agente monitorea la operación. El equipo interviene únicamente cuando una alerta crítica necesita decisión humana.",
-        navLabel: "Accesos operativos",
-        priority: `Prioridad humana · ${criticalAlerts.length} crítica`,
-        alerts: "Atender alertas",
+        title: "Intervení solo cuando el impacto es crítico.",
+        intro: "El agente monitorea cada traslado. El equipo recibe una señal clara únicamente cuando hace falta una decisión humana.",
+        priority: `${criticalAlerts.length} alerta crítica requiere atención`,
+        alerts: "Atender alerta crítica",
         noAlerts: "No hay alertas críticas pendientes",
-        review: "Revisar ahora",
         tracking: "Seguimiento operativo",
         transfers: "Ver traslados",
         activeTransfers: `${activeTrips.length} traslados activos · recorrido, ETA y actividad`,
-        mockUpdate: "Actualización automática con datos mock",
         openTransfers: "Abrir traslados",
         metrics: "Métricas del agente",
         demo: "Estimaciones de demostración",
@@ -93,41 +91,42 @@ export function OperationsHome() {
 
   return (
     <main className="ops-home">
-      <header className="ops-home__intro">
-        <div>
+      <section className="ops-command" aria-labelledby="ops-command-title">
+        <div className="ops-command__copy">
           <p className="ops-home__context">{copy.context}</p>
-          <h1>{copy.title}</h1>
-        </div>
-        <p>
-          {copy.intro}
-        </p>
-      </header>
+          <h1 id="ops-command-title">{copy.title}</h1>
+          <p className="ops-command__intro">{copy.intro}</p>
 
-      <section className="ops-index" aria-label={copy.navLabel}>
-        <Link className="ops-action ops-action--critical" to="/alertas?severity=critical">
-          <span className="ops-action__icon" aria-hidden="true"><ShieldAlert size={22} /></span>
-          <span className="ops-action__body">
-            <span className="ops-action__meta">{copy.priority}</span>
-            <strong>{copy.alerts}</strong>
-            <span>{primaryAlert?.titulo ?? copy.noAlerts}</span>
-          </span>
-          <span className="ops-action__aside">
+          <div className="ops-command__incident">
+            <span className="ops-command__priority"><i aria-hidden="true" />{copy.priority}</span>
+            <strong>{primaryAlert?.titulo ?? copy.noAlerts}</strong>
             {primaryAlert && <small>{primaryAlert.ubicacion} · {primaryAlert.hace}</small>}
-            <span className="ops-action__cta">{copy.review} <ArrowUpRight size={17} /></span>
-          </span>
-        </Link>
+          </div>
 
-        <Link className="ops-action" to="/pedidos">
-          <span className="ops-action__icon" aria-hidden="true"><Truck size={22} /></span>
-          <span className="ops-action__body">
-            <span className="ops-action__meta">{copy.tracking}</span>
+          <Link className="ops-primary-cta" to="/alertas?severity=critical">
+            <ShieldAlert size={18} aria-hidden="true" />
+            <span>{copy.alerts}</span>
+            <ArrowUpRight size={18} aria-hidden="true" />
+          </Link>
+        </div>
+
+        <OperationsPulse
+          points={activityPoints}
+          activeTrips={activeTrips.length}
+          criticalAlerts={criticalAlerts.length}
+          locale={locale}
+        />
+      </section>
+
+      <section className="ops-transfer-entry" aria-label={copy.tracking}>
+        <Link to="/pedidos">
+          <span className="ops-transfer-entry__icon" aria-hidden="true"><Truck size={20} /></span>
+          <span>
+            <small>{copy.tracking}</small>
             <strong>{copy.transfers}</strong>
             <span>{copy.activeTransfers}</span>
           </span>
-          <span className="ops-action__aside">
-            <small>{copy.mockUpdate}</small>
-            <span className="ops-action__cta">{copy.openTransfers} <ArrowUpRight size={17} /></span>
-          </span>
+          <span className="ops-transfer-entry__cta">{copy.openTransfers} <ArrowUpRight size={17} /></span>
         </Link>
       </section>
 

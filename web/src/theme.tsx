@@ -44,10 +44,7 @@ export function ThemeToggle() {
       aria-pressed={isDark}
       title={isDark ? "Modo día" : "Modo noche"}
     >
-      <span className="theme-toggle__track" aria-hidden="true">
-        <span className="theme-toggle__thumb">{isDark ? <Moon size={13} /> : <Sun size={13} />}</span>
-      </span>
-      <span className="theme-toggle__label">{isDark ? "Noche" : "Día"}</span>
+      {isDark ? <Moon size={17} aria-hidden="true" /> : <Sun size={17} aria-hidden="true" />}
     </button>
   );
 }
