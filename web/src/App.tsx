@@ -115,11 +115,18 @@ function Header() {
           className="brand"
           aria-label="Ir al inicio"
         >
-          <span className="brand-mark">21</span>
-          <span className="brand-name">
-            <span>21agents</span>
-            <span className="brand-product">Ops</span>
-          </span>
+          <img
+            className="brand-logo brand-logo--lockup"
+            src="/brand-lockup.svg"
+            alt=""
+            aria-hidden="true"
+          />
+          <img
+            className="brand-logo brand-logo--mark"
+            src="/brand-mark.svg"
+            alt=""
+            aria-hidden="true"
+          />
         </button>
 
         <nav className="primary-nav" aria-label="Navegación principal">

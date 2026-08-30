@@ -33,19 +33,6 @@ button { font: inherit; }
   letter-spacing: -0.03em;
 }
 
-.brand-mark {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-sm);
-  background: var(--color-primary);
-  color: var(--color-accent-ink);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-}
-
 .live {
   display: flex;
   align-items: center;
@@ -755,7 +742,6 @@ input:focus-visible {
 .topbar__primary,
 .topbar__utilities,
 .brand,
-.brand-name,
 .primary-nav,
 .primary-nav__item,
 .live,
@@ -785,33 +771,21 @@ input:focus-visible {
   font-weight: 600;
 }
 
-.brand-mark {
-  width: 2rem;
-  height: 2rem;
-  border-radius: var(--radius-sm);
-  background: var(--color-accent-fill);
-  color: var(--color-accent-ink);
-  font-family: var(--font-outlier);
-  font-weight: 600;
+.brand-logo {
+  display: block;
+  flex: 0 0 auto;
+  object-fit: contain;
 }
 
-.brand-name {
-  gap: var(--space-xs);
-  color: var(--color-ink);
-  font-size: var(--text-base);
-  letter-spacing: -0.025em;
+.brand-logo--lockup {
+  width: auto;
+  height: 2.25rem;
 }
 
-.brand-product {
-  padding: var(--space-3xs) var(--space-2xs);
-  border: var(--rule-thin) solid var(--color-rule-strong);
-  border-radius: var(--radius-sm);
-  color: var(--color-muted);
-  font-family: var(--font-body);
-  font-size: 0.625rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.brand-logo--mark {
+  display: none;
+  width: 2.25rem;
+  height: 2.25rem;
 }
 
 .primary-nav {
@@ -1476,8 +1450,12 @@ input:focus-visible {
     justify-content: flex-end;
   }
 
-  .brand-name {
+  .brand-logo--lockup {
     display: none;
+  }
+
+  .brand-logo--mark {
+    display: block;
   }
 
   .primary-nav {
