@@ -1,224 +1,328 @@
-# NextWave — agente de voz para coordinación de carga en puertos
+# Agent 21
 
-Hackathon Yuno x Nauta — challenge #4 "The Agent on the Line".
+**Autonomous voice operations for port logistics.**
 
-Automatiza el trabajo del **monitorista**: hoy una persona mira la posición del
-camión en una PC, llama al conductor cuando llega al puerto para ver si está
-disponible, y lo vuelve a llamar cuando el puerto habilita la carga. El agente
-hace esas llamadas solo, detecta eventos anormales en ruta (paradas, frenadas) y
-mide el estado de la voz del conductor.
+Agent 21 was built for Challenge #4, **“The Agent on the Line,”** at the
+Yuno × Nauta NextWave Hackathon.
 
----
+## What Agent 21 solves
 
-## Levantar todo (un solo comando)
+Port logistics teams still depend on operators continuously watching vehicle
+positions, calling drivers, recording what happened, and escalating incidents
+manually. This creates delays, repetitive work, and limited visibility when
+several trips require attention at the same time.
 
-Necesitás Docker Desktop abierto. Nada más: ni Python, ni Redis, ni instalar
-dependencias.
+Agent 21 turns GPS signals and operational events into coordinated actions:
+
+1. The driver app sends the truck's location and speed.
+2. The detector identifies arrivals, unexpected stops, sudden slowdowns, and
+   route deviations.
+3. The event bus routes each incident to the voice agent and alert dispatcher.
+4. The agent calls the driver, gathers context, and produces a structured
+   operational report.
+5. The operations dashboard surfaces the trip timeline, calls, alerts,
+   escalation status, and cost metrics.
+6. A human operator remains responsible for cases that require intervention.
+
+The result is an exception-based workflow: operators focus on the trips that
+need judgment instead of repeatedly checking every trip.
+
+### AI-native loop
+
+```text
+Operational signal → event detection → voice interaction → structured triage
+                   → evidence and recommendation → human escalation when needed
+```
+
+Agent 21 combines deterministic operational rules with OpenAI-powered
+conversation and triage. Risky or incomplete outcomes are escalated instead of
+being silently resolved.
+
+## Architecture
+
+![alt text](image.png)
+## Run locally
+
+### Prerequisites
+
+- Docker Desktop with Docker Compose
+- Node.js and npm
+- Python 3
+- Expo Go on a physical phone if you want to run the driver app
+- Internet access on the first run to download images and Node dependencies
+
+The startup script is optimized for macOS when automatically discovering the
+computer's LAN address for Expo. On another operating system, set
+`EXPO_PUBLIC_API_URL` manually to an address the phone can reach.
+
+### Quick start: safe simulated mode
+
+No paid credentials are required for the default demo. Calls and notifications
+are simulated unless explicitly enabled.
 
 ```bash
+git clone https://github.com/sleepydogo/next-wave-jaimeros.git
+cd next-wave-jaimeros
 ./start.sh
 ```
 
-Levanta **Redis + RabbitMQ + el backend**, espera a que estén sanos, y deja un
-viaje de demo cargado con posiciones para que el dashboard no arranque vacío.
+The script:
 
-| | |
-|---|---|
-| API | <http://localhost:8000> |
-| Swagger (todos los endpoints) | <http://localhost:8000/docs> |
-| Consola de RabbitMQ | <http://localhost:15672> — `guest` / `guest` |
+- starts Redis, RabbitMQ, and the FastAPI backend with Docker Compose;
+- creates or reuses a demo trip;
+- installs and starts the React operations dashboard;
+- installs and starts the Expo driver app;
+- prints the demo trip ID and the API URL used by the phone.
 
-```bash
-./start.sh --clean               # borra la base y arranca de cero
-docker compose logs -f backend   # ver los logs
-docker compose down              # apagar
-```
+After startup, open:
 
-El código de `backend/app/` está montado en el contenedor con `--reload`: al
-guardar un archivo, el backend se reinicia solo. No hace falta rebuildear.
+| Service | URL or access |
+| --- | --- |
+| Operations dashboard | <http://localhost:5173> |
+| Backend API | <http://localhost:8000> |
+| Interactive API documentation | <http://localhost:8000/docs> |
+| Browser voice test | <http://localhost:8000/dev/voz> |
+| RabbitMQ console | <http://localhost:15672> — `nextwave` / `nextwave-dev` |
+| Driver app | Scan the Expo QR code printed in the terminal |
 
-Por defecto corre con `SIMULATE_CALLS=1`, así que **no llama por teléfono ni
-gasta plata**: la conversación se simula pero pasa por el mismo flujo.
+The browser voice test requires `OPENAI_API_KEY`. The rest of the simulated
+workflow can start without paid credentials; without an OpenAI key, the voice
+brain uses its deterministic fallback.
 
----
+### Demo walkthrough
 
-## Nota para el equipo
+Keep `./start.sh` running and use a second terminal.
 
-Se pidió **solamente la estructura de carpetas** para arrancar por la base de
-datos. En vez de eso se generó el backend completo de una sola vez, sin discutir
-el esquema de datos ni las decisiones de diseño con el equipo. Fue un error de
-scope: se saltearon las decisiones que eran del equipo y se llegó a código
-corriendo antes de acordar el modelo. Disculpas.
-
-**Nada de esto está commiteado.** El esquema de datos en `backend/app/db.py` es
-un borrador unilateral y debe revisarse (o tirarse) antes de construir encima.
-Ver "Decisiones pendientes" al final.
-
----
-
-## Estado actual
-
-### Hecho y verificado corriendo
-
-| Pieza | Estado |
-|---|---|
-| Backend FastAPI + SQLite + Redis | funciona |
-| Bus de eventos (Redis pub/sub; RabbitMQ opcional) | funciona |
-| Detector: geofence de llegada, parada en ruta, frenada brusca | funciona |
-| Agente de voz (modo simulado, sin gastar Twilio) | funciona |
-| Agente de voz (modo real Twilio + OpenAI) | **sin probar** — falta número y ngrok |
-| Dispatcher de alertas (email/WhatsApp) | solo loguea + guarda en DB |
-| Cron agent que ajusta thresholds | funciona con heurística; con LLM sin probar |
-| Contador de costos en vivo | funciona |
-| Simulador de viaje para la demo | funciona |
-
-Escenarios corridos end-to-end:
-
-- **llegada**: camión entra al geofence → llamada al conductor → el puerto
-  habilita → segunda llamada. Los 6 eventos quedan en la DB.
-- **parada**: camión se detiene en ruta → emergencia → llamada + alerta.
-
-### No existe todavía
-
-- `web/` — dashboard de métricas en React. Carpeta vacía.
-- `mobile/` — app del conductor en Expo SDK 54. Carpeta vacía.
-- `docs/COSTS.md` — el esquema de costos detallado que pide el challenge.
-  El *modelo* está implementado en `backend/app/costs.py`, pero el documento
-  con la proyección a escala no está escrito.
-- Integración con el sistema del puerto/depósito (hoy es un botón manual).
-
----
-
-## Cómo correr
+Run the complete arrival flow:
 
 ```bash
-# 1. Redis
-brew services start redis
-
-# 2. Backend
-cd backend
-uv venv --python 3.11 .venv
-uv pip install fastapi 'uvicorn[standard]' redis httpx python-dotenv \
-                twilio openai aio-pika python-multipart
-cp ../.env.example ../.env          # SIMULATE_CALLS=1 por defecto: no gasta plata
-.venv/bin/uvicorn app.main:app --reload --port 8000
-
-# 3. Demo (en otra terminal)
-cd backend
-.venv/bin/python -m sim.simulate_trip llegada    # llegada al puerto -> 2 llamadas
-.venv/bin/python -m sim.simulate_trip parada     # parada en ruta -> emergencia
-.venv/bin/python -m sim.simulate_trip frenada    # caída de velocidad
+docker compose exec backend python -m sim.simulate_trip llegada
 ```
 
-Ver resultados: `curl localhost:8000/ops/metrics`, `/ops/calls`, `/ops/alerts`.
+This simulates a truck approaching the port, entering the geofence, receiving
+an arrival call, and then receiving a second call when the port authorizes the
+load.
 
-### Para llamadas reales
+Additional scenarios:
 
-1. `SIMULATE_CALLS=0` y credenciales de Twilio + OpenAI en `.env`.
-2. `ngrok http 8000` → poner la URL en `PUBLIC_URL`.
-3. Configurar el número de Twilio. Los webhooks son `/twilio/voice/{call_id}`,
-   `/twilio/gather/{call_id}`, `/twilio/status/{call_id}`.
-
----
-
-## Arquitectura
-
-```
-app móvil ──ping GPS──> /driver/ping ──> detector ──evento──> bus
-                                                               │
-                                          ┌────────────────────┼──────────────┐
-                                          ▼                    ▼              ▼
-                                    agent worker         dispatcher     (cron agent
-                                          │              email/WhatsApp   ajusta
-                                     Twilio + OpenAI                     thresholds)
-                                          │
-                                    /twilio/* webhooks ──> SQLite ──> /ops/* ──> dashboard
+```bash
+docker compose exec backend python -m sim.simulate_trip parada
+docker compose exec backend python -m sim.simulate_trip frenada
 ```
 
-Corre todo en **un solo proceso** FastAPI, con detector/agente/dispatcher/cron
-como tasks de asyncio en módulos separados. Se decidió así por las 24hs; los
-módulos están separados para poder partirlos en servicios después.
+- `parada` simulates an unexpected stop and creates a high-priority alert.
+- `frenada` simulates a sudden slowdown and creates an operational alert.
 
-El bus usa **Redis pub/sub** por defecto y **RabbitMQ** si se define
-`RABBITMQ_URL` — Docker estaba apagado durante el desarrollo.
+While a scenario runs:
 
-### Mapa de archivos
+1. Open the dashboard at <http://localhost:5173>.
+2. Follow the active transfer and its event timeline.
+3. Open **Alerts** to inspect the generated incident.
+4. Open the associated call to inspect its transcript, triage, and cost.
+5. Check <http://localhost:8000/ops/metrics> for live operational metrics.
 
-```
-backend/app/
-  config.py              env + rutas
-  db.py                  esquema SQLite  <-- BORRADOR, revisar
-  state.py               memoria volátil en Redis (último ping, ventanas, locks)
-  bus.py                 bus de eventos, backend intercambiable
-  events.py              nombres de eventos
-  costs.py               modelo de costos
-  main.py                app FastAPI + arranque de workers
-  detector/rules.py      geofence, parada, frenada + thresholds
-  detector/worker.py     consume pings, publica eventos
-  agent/brain.py         OpenAI: qué decir + métricas de voz
-  agent/caller.py        Twilio outbound + modo simulado
-  agent/worker.py        evento -> a quién llamar
-  dispatcher/worker.py   alertas por email/WhatsApp
-  jobs/threshold_agent.py  cron que ajusta thresholds según falsos positivos
-  api/driver.py          endpoints de la app móvil
-  api/ops.py             endpoints del dashboard
-  api/twilio_hooks.py    TwiML de la conversación
-backend/sim/simulate_trip.py   simulador de viaje para la demo
+The driver app also includes a collapsed **Debug** section with manual demo
+triggers for arrival, deviation, stop, and slowdown events.
+
+### Reset or stop the demo
+
+Reset the application data through the API:
+
+```bash
+curl -X POST http://localhost:8000/ops/reset
 ```
 
----
+Start again with clean Docker volumes:
 
-## Modelo de costos
+```bash
+./start.sh --clean
+```
 
-Está en `backend/app/costs.py`. La unidad de comparación es el **evento
-gestionado** (una llegada, una habilitación de carga, una emergencia), no el
-minuto de llamada: el monitorista no gasta el tiempo hablando, lo gasta mirando
-pantallas y reintentando llamadas.
+Press `Ctrl+C` in the terminal running `start.sh` to stop the frontends and
+Docker services. You can also stop the services directly with:
 
-Medido en la corrida real del escenario "parada":
+```bash
+docker compose down
+```
 
-| | por evento |
-|---|---|
-| Agente | **USD 0.20** |
-| Monitorista humano | **USD 0.60** |
+### Enable real phone calls
 
-Costo del agente por llamada = minuto iniciado de Twilio (0.18) + ASR (0.02) +
-tokens de LLM (despreciable, ~0.0002). El humano son 6 min de monitorista a
-USD 6/hora.
+Real calls can spend Twilio and OpenAI credits. Keep the default simulated mode
+for development and judging unless a real call is intentional.
 
-> Los precios son **estimaciones sin verificar** y están parametrizados por env
-> (`P_VOICE_MIN`, `P_ASR_REQ`, `P_LLM_IN`, `P_LLM_OUT`, `P_HUMAN_HOUR`,
-> `P_HUMAN_MIN_EVENT`). **Hay que verificarlos en el pricing oficial de Twilio y
-> OpenAI antes de la demo** — el precio de voz a móvil argentino varía mucho.
+```bash
+cp .env.example .env
+```
 
-Palancas de reducción de costo ya implementadas:
-- Modo simulado para desarrollar sin gastar.
-- Locks anti-spam en Redis (`state.once`) para no llamar 10 veces por el mismo evento.
-- `gpt-4o-mini` y máximo 2 preguntas por llamada.
-- Botón "ya estoy listo" en la app (`/driver/{trip_id}/ack`) que evita la llamada.
+Complete the following values in `.env`:
 
----
+```dotenv
+SIMULATE_CALLS=0
+TWILIO_ACCOUNT_SID=...
+TWILIO_AUTH_TOKEN=...
+TWILIO_FROM=...
+DEMO_WORKER_PHONE=...
+OPENAI_API_KEY=...
+NGROK_AUTHTOKEN=...
+NGROK_DOMAIN=your-domain.ngrok-free.app
+PUBLIC_URL=https://your-domain.ngrok-free.app
+```
 
-## Bugs conocidos
+Replace every `CHANGEME` placeholder before starting the mobile app or real
+calls. Then run:
 
-1. **Doble llamada por un mismo incidente.** Un frenazo de 65 a 0 km/h dispara
-   primero `truck.slowdown` y después `truck.stopped` → dos llamadas de
-   emergencia por el mismo hecho. Falta deduplicar en `detector/worker.py`.
-2. **"Camión detenido 0 min"** en la alerta: el simulador comprime
-   `stop_min_seconds` a 8s y el redondeo a minutos da 0.
-3. Sin `OPENAI_API_KEY` el brain devuelve un fallback con `needs_human=true`,
-   lo que genera una alerta de "riesgo" en cada llamada. Es esperable, pero
-   ensucia la demo si se corre sin key.
-4. `POST /ops/seed` crea un viaje nuevo cada vez que se lo llama.
+```bash
+./start.sh --calls
+```
 
-## Decisiones pendientes (para acordar con el equipo)
+Twilio uses these backend webhooks:
 
-- **El esquema de datos.** Está en `db.py` y lo escribió una sola persona sin
-  consenso. Preguntas abiertas: ¿los `pings` van a SQLite o solo a Redis?
-  ¿`trips.status` es la máquina de estados correcta
-  (`en_ruta/en_puerto/esperando_puerto/habilitado/cargando/cerrado`)?
-  ¿hace falta tabla de puertos en vez del puerto embebido en `trips`?
-- ¿Un proceso o servicios separados?
-- ¿`<Gather>` con speech-to-text (lo implementado, más simple) o Media Streams
-  con OpenAI Realtime (conversación más natural, bastante más trabajo)?
-- Cómo se integra el puerto/depósito de verdad.
+```text
+POST /twilio/voice/{call_id}
+POST /twilio/gather/{call_id}
+POST /twilio/status/{call_id}
+WS   /twilio/stream/{call_id}
+```
+
+## Project structure
+
+```text
+.
+├── backend/
+│   ├── app/
+│   │   ├── agent/                 # Voice brain, caller, reports, and audio signals
+│   │   ├── api/                   # Driver, operations, Twilio, and demo endpoints
+│   │   ├── detector/              # GPS event rules and detector worker
+│   │   ├── dispatcher/            # Alert persistence and notification delivery
+│   │   ├── jobs/                  # Adaptive threshold agent
+│   │   ├── bus.py                 # Redis or RabbitMQ event transport
+│   │   ├── config.py              # Environment-based configuration
+│   │   ├── costs.py               # Agent and human cost model
+│   │   ├── db.py                  # SQLite schema and data access
+│   │   ├── events.py              # Versioned event names and validation
+│   │   ├── main.py                # FastAPI application and background workers
+│   │   └── state.py               # Redis queues, windows, sessions, and locks
+│   ├── agent/
+│   │   ├── examples/              # Example event payloads
+│   │   ├── event.schema.json      # Event contract schema
+│   │   └── EVENTS.md              # Event contract documentation
+│   ├── sim/
+│   │   └── simulate_trip.py       # Repeatable demo scenarios
+│   ├── Dockerfile
+│   └── pyproject.toml
+├── mobile/
+│   ├── components/                # Driver map and trip detail components
+│   ├── App.tsx                    # Expo driver experience
+│   ├── api.ts                     # Driver API client
+│   └── package.json
+├── web/
+│   ├── public/                    # Brand and browser assets
+│   ├── src/
+│   │   ├── components/            # Operations dashboard components
+│   │   ├── api.ts                 # Operations API client
+│   │   ├── App.tsx                # Dashboard routes and views
+│   │   └── useDatos.tsx           # Live backend polling and shared state
+│   └── package.json
+├── docs/                          # Product and design documentation
+├── .env.example                   # Backend and integration configuration template
+├── docker-compose.yml             # Redis, RabbitMQ, backend, and optional ngrok
+└── start.sh                       # Full local demo launcher
+```
+
+## Configuration
+
+The project starts in a safe simulated mode. Add a root `.env` only when you
+need to override defaults or connect external services.
+
+| Variable | Purpose | Required by default |
+| --- | --- | --- |
+| `SIMULATE_CALLS` | Uses simulated calls when set to `1` | No; defaults to `1` |
+| `SIMULATE_DISPATCH` | Simulates external alert delivery | No; defaults to `1` |
+| `OPENAI_API_KEY` | Enables LLM conversation and OpenAI Realtime | No |
+| `OPENAI_MODEL` | Selects the chat model | No |
+| `VOICE_MODE` | Selects `gather` or `realtime` for Twilio calls | No |
+| `TWILIO_ACCOUNT_SID` | Twilio account identifier | Real calls only |
+| `TWILIO_AUTH_TOKEN` | Twilio authentication and webhook validation | Real calls only |
+| `TWILIO_FROM` | Twilio caller number | Real calls only |
+| `DEMO_WORKER_PHONE` | Driver number used by the seeded trip | Real calls only |
+| `NGROK_AUTHTOKEN` | Starts the ngrok voice profile | Real calls only |
+| `NGROK_DOMAIN` | Public hostname used by Twilio and the mobile app | Real calls only |
+| `PUBLIC_URL` | Public backend URL used in Twilio callbacks | Real calls only |
+| `RESEND_API_KEY` | Enables real email alert delivery | No |
+| `ALERT_EMAIL_TO` | Recipient for operational email alerts | Email delivery only |
+| `GOOGLE_MAPS_API_KEY` | Backend reverse geocoding | No |
+| `VITE_API_URL` | Backend URL used by the web dashboard | No; local default provided |
+| `VITE_GOOGLE_MAPS_API_KEY` | Google Maps key used by the web dashboard | Map only |
+| `VITE_GOOGLE_MAPS_MAP_ID` | Google Maps style/map identifier | Map only |
+| `EXPO_PUBLIC_API_URL` | Backend URL reachable from the driver phone | Set by `start.sh` locally |
+| `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY` | Google Maps key used by the driver app | Map only |
+
+Cost assumptions can also be overridden with `P_VOICE_MIN`, `P_ASR_REQ`,
+`P_LLM_IN`, `P_LLM_OUT`, `P_HUMAN_HOUR`, and `P_HUMAN_MIN_EVENT`.
+
+## Current capabilities and demo scope
+
+### Implemented
+
+- Live operations dashboard with trips, alerts, call details, transcripts,
+  audio playback, telemetry context, and cost metrics.
+- Expo driver app with active-trip context, GPS updates, and repeatable demo
+  event triggers.
+- Detection of port arrival, unexpected stops, sudden slowdowns, and route
+  deviations.
+- Event-driven orchestration through RabbitMQ or Redis.
+- Persistent trip, event, call, threshold, and alert records in SQLite.
+- Simulated phone workflow for safe and repeatable demonstrations.
+- Twilio call flow using speech gathering or bidirectional Realtime audio.
+- OpenAI-powered conversation, structured triage, and operational reports.
+- Browser-based Realtime voice test with acoustic voice-signal processing.
+- Dashboard alerts with optional email delivery through Resend.
+- Adaptive detector thresholds using an LLM when configured, with a
+  deterministic heuristic fallback.
+- Measured agent-call costs and configurable human-cost comparison.
+
+### Intentional demo scaffolding
+
+- The port authorization event is triggered manually instead of being connected
+  to a specific port-management system.
+- Calls, notifications, and external integrations are simulated by default to
+  keep the demo safe, deterministic, and free of accidental charges.
+- SQLite and a single FastAPI process keep local setup small for the hackathon;
+  the event-driven modules can be separated for a production deployment.
+- Google Maps, Twilio, OpenAI, ngrok, and Resend features require their own
+  credentials when enabled.
+
+## Cost model
+
+Agent 21 compares the cost of an **operational event handled**—an arrival,
+authorization, or incident—rather than only comparing call duration. This
+reflects the time an operator would otherwise spend monitoring, calling,
+retrying, and documenting the event.
+
+The backend measures call duration, speech-recognition turns, and model token
+usage. `GET /ops/metrics` exposes the accumulated agent cost, its human
+equivalent, and estimated savings.
+
+All price assumptions are configurable through environment variables. The
+defaults are demo estimates and should be replaced with verified provider and
+labor rates before using the model for a production decision.
+
+## Tech stack
+
+| Area | Technology |
+| --- | --- |
+| Operations dashboard | React, TypeScript, Vite, Tailwind CSS |
+| Driver app | React Native, Expo, Expo Location, React Native Maps |
+| Backend API | Python, FastAPI, Uvicorn |
+| AI and voice | OpenAI Chat Completions, OpenAI Realtime, Twilio Voice |
+| Event transport | RabbitMQ or Redis Pub/Sub |
+| Operational state | Redis |
+| Persistent data | SQLite |
+| Maps and geocoding | Google Maps Platform |
+| Email alerts | Resend |
+| Local orchestration | Docker Compose |
+
+## Team
+
+Built by **Team 21agents** for the 2026 NextWave Hackathon, presented by Yuno
+with Nauta.

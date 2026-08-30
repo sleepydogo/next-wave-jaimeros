@@ -40,6 +40,7 @@ yarn-error.log*
 
 # --- editores / SO ---
 .DS_Store
+.impeccable/
 .idea/
 .vscode/
 *.swp
