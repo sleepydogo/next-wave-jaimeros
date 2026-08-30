@@ -1,9 +1,0 @@
-{
-  "date": "2026-08-30",
-  "framework": "React 19 + Vite 8 + Tailwind CSS 4",
-  "font_stack": "Native system stack: -apple-system, SF Pro Display, Inter, system-ui",
-  "palette": "Project system from docs/nextwave-plan-diseño.md: #FAFAFA/#FFFFFF light, #111111/#1B1B1B dark, nautical blue #0A5C8C",
-  "motion": "CSS-only; no motion library",
-  "spacing": "Tailwind utilities plus existing component CSS",
-  "design_system": "docs/nextwave-plan-diseño.md"
-}
