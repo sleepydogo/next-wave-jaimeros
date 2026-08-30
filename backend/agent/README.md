@@ -60,6 +60,8 @@ Roadmaps de integraciones:
 - [`DISPATCHER_ROADMAP.md`](./DISPATCHER_ROADMAP.md): dashboard + email Resend.
 - [`TWILIO_ROADMAP.md`](./TWILIO_ROADMAP.md): Twilio Voice + OpenAI.
 - [`RABBITMQ_DOCKER_ROADMAP.md`](./RABBITMQ_DOCKER_ROADMAP.md): broker, ngrok y Compose.
+- [`E2E_TESTING_ROADMAP.md`](./E2E_TESTING_ROADMAP.md): suite completa y smoke tests reales.
+- [`TRIGGER_CALL.md`](./TRIGGER_CALL.md): payload y comandos para disparar una llamada.
 
 ## Estado actual
 

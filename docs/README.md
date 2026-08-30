@@ -16,6 +16,10 @@
   [`backend/agent/TWILIO_ROADMAP.md`](../backend/agent/TWILIO_ROADMAP.md).
 - **Roadmap de RabbitMQ y Docker**:
   [`backend/agent/RABBITMQ_DOCKER_ROADMAP.md`](../backend/agent/RABBITMQ_DOCKER_ROADMAP.md).
+- **Roadmap de testing end-to-end**:
+  [`backend/agent/E2E_TESTING_ROADMAP.md`](../backend/agent/E2E_TESTING_ROADMAP.md).
+- **Trigger manual de llamadas**:
+  [`backend/agent/TRIGGER_CALL.md`](../backend/agent/TRIGGER_CALL.md).
 
 ## Documentos pendientes
 
