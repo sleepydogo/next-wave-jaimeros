@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
-import { getAlerts, getTripsConLlamadas } from "./api";
+import { getAlerts, getMetrics, getTripsConLlamadas, hydrateAlerts } from "./api";
+import type { Metrics } from "./api";
 import type { Alert, Trip } from "./types/dashboard";
 
 /** Datos vivos del backend, refrescados solos.
@@ -12,11 +13,18 @@ import type { Alert, Trip } from "./types/dashboard";
 interface Datos {
   trips: Trip[];
   alerts: Alert[];
+  metrics: Metrics | null;
   cargando: boolean;
   error: string | null;
 }
 
-const Ctx = createContext<Datos>({ trips: [], alerts: [], cargando: true, error: null });
+const Ctx = createContext<Datos>({
+  trips: [],
+  alerts: [],
+  metrics: null,
+  cargando: true,
+  error: null,
+});
 
 export const useDatos = () => useContext(Ctx);
 
@@ -30,6 +38,7 @@ export function DatosProvider({
   const [datos, setDatos] = useState<Datos>({
     trips: [],
     alerts: [],
+    metrics: null,
     cargando: true,
     error: null,
   });
@@ -38,8 +47,13 @@ export function DatosProvider({
     let vivo = true;
     const traer = async () => {
       try {
-        const [trips, alerts] = await Promise.all([getTripsConLlamadas(), getAlerts()]);
-        if (vivo) setDatos({ trips, alerts, cargando: false, error: null });
+        const [trips, rawAlerts, metrics] = await Promise.all([
+          getTripsConLlamadas(),
+          getAlerts(),
+          getMetrics(),
+        ]);
+        const alerts = hydrateAlerts(rawAlerts, trips);
+        if (vivo) setDatos({ trips, alerts, metrics, cargando: false, error: null });
       } catch (e) {
         // no vaciamos lo que ya se estaba mostrando: si el backend parpadea,
         // el monitorista sigue viendo la ultima foto buena

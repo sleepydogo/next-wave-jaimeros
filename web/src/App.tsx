@@ -7,6 +7,7 @@ import {
   useLocation,
   useNavigate,
   useParams,
+  useSearchParams,
 } from "react-router-dom";
 import {
   Activity,
@@ -16,14 +17,15 @@ import {
   ChevronRight,
   Clock,
   Filter,
-  Layers,
   MapPin,
   Package,
   Phone,
   Play,
   RotateCcw,
   Search,
+  Gauge,
   Truck,
+  X,
 } from "lucide-react";
 import {
   APIProvider,
@@ -35,7 +37,10 @@ import {
   useMap,
 } from "@vis.gl/react-google-maps";
 import { DatosProvider, useDatos } from "./useDatos";
-import type { CallLog, TripState } from "./types/dashboard";
+import { LanguageProvider, LanguageSelector } from "./i18n";
+import { ThemeProvider, ThemeToggle } from "./theme";
+import { OperationsHome } from "./components/dashboard/OperationsHome";
+import type { CallLog, Trip, TripState } from "./types/dashboard";
 import "./App.css";
 import "./route.css";
 import "./fix.css";
@@ -49,12 +54,10 @@ export function TripStatusBadge({ state }: { state: TripState }) {
 
   if (isAtencion) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full bg-red-50 text-red-700 border border-red-200 ring-1 ring-red-500/20 shadow-2xs">
+      <span className="ops-status ops-status--critical">
         <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
           <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600" />
         </span>
-        <AlertTriangle size={13} className="text-red-600 shrink-0" />
         <span>Atención Requerida</span>
       </span>
     );
@@ -62,7 +65,7 @@ export function TripStatusBadge({ state }: { state: TripState }) {
 
   if (isCarga) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
+      <span className="ops-status ops-status--accent">
         <span className="h-2 w-2 rounded-full bg-blue-600 shrink-0" />
         <span>Carga Habilitada</span>
       </span>
@@ -71,7 +74,7 @@ export function TripStatusBadge({ state }: { state: TripState }) {
 
   if (isFinalizado) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full bg-slate-100 text-slate-600 border border-slate-200 shadow-2xs">
+      <span className="ops-status ops-status--muted">
         <span className="h-2 w-2 rounded-full bg-slate-400 shrink-0" />
         <span>Finalizado</span>
       </span>
@@ -79,9 +82,8 @@ export function TripStatusBadge({ state }: { state: TripState }) {
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+    <span className="ops-status ops-status--success">
       <span className="relative flex h-2 w-2">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600" />
       </span>
       <span>En Camino</span>
@@ -90,55 +92,74 @@ export function TripStatusBadge({ state }: { state: TripState }) {
 }
 
 function Header() {
-  const { alerts } = useDatos();
+  const { alerts, cargando, error } = useDatos();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const isPedidos = location.pathname === "/" || location.pathname.startsWith("/pedidos");
+  const isHome = location.pathname === "/";
+  const isPedidos = location.pathname.startsWith("/pedidos");
   const isAlertas = location.pathname.startsWith("/alertas");
-
-  const criticalCount = alerts.filter((a) => a.tipo === "emergencia" || a.tipo === "atencion").length;
+  const criticalCount = alerts.filter((alert) => alert.tipo === "emergencia").length;
+  const connectionLabel = error
+    ? "Backend sin conexión"
+    : cargando
+      ? "Conectando backend"
+      : "Monitoreo en vivo";
 
   return (
-    <header className="topbar flex items-center justify-between px-4 sm:px-6 py-2.5 bg-[#0B132B] text-white shadow-md border-b border-slate-800">
-      <div className="flex items-center gap-6 sm:gap-8">
-        <div
+    <header className="topbar">
+      <div className="topbar__primary">
+        <button
+          type="button"
           onClick={() => navigate("/")}
-          className="brand flex items-center gap-2 cursor-pointer font-extrabold text-base sm:text-lg tracking-tight hover:opacity-90 transition-opacity select-none"
+          className="brand"
+          aria-label="Ir al inicio"
         >
-          <span className="brand-mark bg-[#0077FC] text-white px-2 py-0.5 rounded text-xs font-black tracking-tight">21</span>
-          <span className="text-white font-extrabold flex items-center gap-1.5">
-            <span>21agents</span>
-            <span className="text-[10px] font-bold text-blue-400 bg-blue-500/20 px-1.5 py-0.5 rounded border border-blue-400/30 uppercase tracking-wider">Ops</span>
-          </span>
-        </div>
+          <img
+            className="brand-logo brand-logo--lockup"
+            src="/brand-lockup.svg"
+            alt=""
+            aria-hidden="true"
+          />
+          <img
+            className="brand-logo brand-logo--mark"
+            src="/brand-mark.svg"
+            alt=""
+            aria-hidden="true"
+          />
+        </button>
 
-        {/* Links de Navegación Principal */}
-        <nav className="flex items-center gap-1 sm:gap-2">
+        <nav className="primary-nav" aria-label="Navegación principal">
           <button
+            type="button"
             onClick={() => navigate("/")}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              isPedidos
-                ? "bg-[#0077FC] text-white shadow-xs"
-                : "text-slate-300 hover:text-white hover:bg-slate-800/60"
-            }`}
+            className="primary-nav__item"
+            aria-current={isHome ? "page" : undefined}
           >
-            <Package size={15} />
-            <span>Pedidos</span>
+            <Gauge size={15} />
+            <span>Inicio</span>
           </button>
 
           <button
+            type="button"
+            onClick={() => navigate("/pedidos")}
+            className="primary-nav__item"
+            aria-current={isPedidos ? "page" : undefined}
+          >
+            <Package size={15} />
+            <span>Traslados</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => navigate("/alertas")}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              isAlertas
-                ? "bg-[#0077FC] text-white shadow-xs"
-                : "text-slate-300 hover:text-white hover:bg-slate-800/60"
-            }`}
+            className="primary-nav__item primary-nav__item--alert"
+            aria-current={isAlertas ? "page" : undefined}
           >
             <Bell size={15} />
             <span>Alertas</span>
             {criticalCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.2 text-[10px] font-extrabold rounded-full bg-red-500 text-white animate-pulse">
+              <span className="critical-count" aria-label={`${criticalCount} alertas críticas`}>
                 {criticalCount}
               </span>
             )}
@@ -146,9 +167,16 @@ function Header() {
         </nav>
       </div>
 
-      <div className="live flex items-center gap-2 text-xs text-emerald-400 font-semibold">
-        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-        <span className="hidden sm:inline">Monitoreo en vivo</span>
+      <div className="topbar__utilities">
+        <span
+          className={`live ${error ? "live--error" : cargando ? "live--loading" : ""}`}
+          title={error ?? undefined}
+        >
+          <i aria-hidden="true" />
+          <span>{connectionLabel}</span>
+        </span>
+        <ThemeToggle />
+        <LanguageSelector />
       </div>
     </header>
   );
@@ -173,7 +201,7 @@ function Breadcrumb({
   const navigate = useNavigate();
   return (
     <nav className="breadcrumb" aria-label="Navegación">
-      <button onClick={() => navigate("/")}>Pedidos</button>
+      <button onClick={() => navigate("/pedidos")}>Traslados</button>
       <ChevronRight size={13} />
       {call ? (
         <>
@@ -228,142 +256,104 @@ function Orders() {
   const finalizadoCount = trips.filter((t) => t.estado === "finalizado").length;
 
   return (
-    <main className="page max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      {/* Encabezado */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-neutral-200">
+    <main className="page ops-workspace ops-workspace--list">
+      <header className="ops-page-header">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[#0077FC]/10 text-[#0077FC] text-xs font-bold uppercase tracking-wider">
-              <Activity size={13} /> Monitoreo de Voz y Flota
-            </span>
-            <span className="text-xs font-medium text-neutral-500">· 29 ago 2026</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 tracking-tight">
+          <h1>
             Gestión de Pedidos y Alertas en Ruta
           </h1>
-          <p className="text-sm text-neutral-600 mt-1">
+          <p>
             Supervisión operativa centralizada: estado de viaje, ruta asignada y resolución prioritaria de incidentes.
           </p>
         </div>
-      </div>
+        <span className="ops-page-meta">{totalCount} unidades · actualización en vivo</span>
+      </header>
 
       {/* Banner de alerta prioritaria si hay casos que requieren atención */}
       {atencionCount > 0 && (
-        <div className="flex items-center justify-between p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-900 shadow-xs">
-          <div className="flex items-center gap-2.5 text-xs sm:text-sm font-bold">
-            <span className="flex h-3 w-3 relative shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-600" />
-            </span>
-            <AlertTriangle size={18} className="text-red-600 shrink-0" />
+        <div className="ops-priority-strip">
+          <div>
+            <AlertTriangle size={18} aria-hidden="true" />
             <span>Hay {atencionCount} viaje(s) con alerta prioritaria que requieren atención del monitorista</span>
           </div>
           <button
             onClick={() => setStatusFilter("atencion")}
-            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+            className="ops-button ops-button--primary ops-button--small"
           >
-            Ver alertas ({atencionCount})
+            <span>Ver alertas ({atencionCount})</span>
+            <ChevronRight size={15} />
           </button>
         </div>
       )}
 
       {/* Tarjetas KPI Resumen */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+      <div className="ops-stat-rail" aria-label="Filtrar pedidos por estado">
         <button
           onClick={() => setStatusFilter("todos")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter === "todos"
-              ? "bg-white border-[#0077FC] shadow-md ring-2 ring-[#0077FC]/20"
-              : "bg-white/80 border-neutral-200 hover:border-neutral-300 hover:bg-white"
-          }`}
+          className={`ops-stat-filter ${statusFilter === "todos" ? "is-active" : ""}`}
         >
-          <span className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider flex items-center justify-between">
-            Total Pedidos <Layers size={14} className="text-neutral-400" />
-          </span>
-          <span className="text-2xl font-extrabold text-neutral-900 mt-1">{totalCount}</span>
+          <span>Total pedidos</span>
+          <strong>{totalCount}</strong>
         </button>
 
         <button
           onClick={() => setStatusFilter("atencion")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter === "atencion"
-              ? "bg-red-50 border-red-500 shadow-md ring-2 ring-red-500/20"
-              : "bg-white/80 border-neutral-200 hover:border-red-200 hover:bg-red-50/40"
-          }`}
+          className={`ops-stat-filter ops-stat-filter--critical ${statusFilter === "atencion" ? "is-active" : ""}`}
         >
-          <span className="text-[11px] font-bold text-red-700 uppercase tracking-wider flex items-center justify-between">
-            Atención <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-          </span>
-          <span className="text-2xl font-extrabold text-red-950 mt-1">{atencionCount}</span>
+          <span>Atención</span>
+          <strong>{atencionCount}</strong>
         </button>
 
         <button
           onClick={() => setStatusFilter("en_camino")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter === "en_camino"
-              ? "bg-emerald-50 border-emerald-500 shadow-md ring-2 ring-emerald-500/20"
-              : "bg-white/80 border-neutral-200 hover:border-emerald-200 hover:bg-emerald-50/40"
-          }`}
+          className={`ops-stat-filter ${statusFilter === "en_camino" ? "is-active" : ""}`}
         >
-          <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center justify-between">
-            En camino <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          </span>
-          <span className="text-2xl font-extrabold text-emerald-950 mt-1">{enCaminoCount}</span>
+          <span>En camino</span>
+          <strong>{enCaminoCount}</strong>
         </button>
 
         <button
           onClick={() => setStatusFilter("carga_habilitada")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter === "carga_habilitada"
-              ? "bg-blue-50 border-blue-500 shadow-md ring-2 ring-blue-500/20"
-              : "bg-white/80 border-neutral-200 hover:border-blue-200 hover:bg-blue-50/40"
-          }`}
+          className={`ops-stat-filter ${statusFilter === "carga_habilitada" ? "is-active" : ""}`}
         >
-          <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider flex items-center justify-between">
-            Carga Habilitada <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-          </span>
-          <span className="text-2xl font-extrabold text-blue-950 mt-1">{cargaCount}</span>
+          <span>Carga habilitada</span>
+          <strong>{cargaCount}</strong>
         </button>
 
         <button
           onClick={() => setStatusFilter("finalizado")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-            statusFilter === "finalizado"
-              ? "bg-slate-100 border-slate-500 shadow-md ring-2 ring-slate-500/20"
-              : "bg-white/80 border-neutral-200 hover:border-slate-300 hover:bg-slate-50"
-          }`}
+          className={`ops-stat-filter ${statusFilter === "finalizado" ? "is-active" : ""}`}
         >
-          <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
-            Finalizados <span className="w-2.5 h-2.5 rounded-full bg-slate-500" />
-          </span>
-          <span className="text-2xl font-extrabold text-slate-900 mt-1">{finalizadoCount}</span>
+          <span>Finalizados</span>
+          <strong>{finalizadoCount}</strong>
         </button>
       </div>
 
       {/* Toolbar: Búsqueda y Filtros */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-neutral-200/80 shadow-xs">
+      <div className="ops-toolbar">
         {/* Campo de búsqueda */}
-        <div className="relative flex-1 min-w-[240px]">
+        <div className="ops-search">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
           <input
             type="text"
             placeholder="Buscar por pedido #, patente, conductor u origen/destino..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0077FC] focus:border-transparent transition-all"
+            className="ops-search__input"
           />
           {searchTerm && (
             <button
               onClick={() => setSearchTerm("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400 hover:text-neutral-700 cursor-pointer"
+              className="ops-search__clear"
+              aria-label="Limpiar búsqueda"
             >
-              ✕
+              <X size={15} />
             </button>
           )}
         </div>
 
         {/* Tabs de estado */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+        <div className="ops-tabs">
           {[
             { id: "todos", label: "Todos" },
             { id: "atencion", label: "Atención" },
@@ -374,11 +364,7 @@ function Orders() {
             <button
               key={tab.id}
               onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
-                statusFilter === tab.id
-                  ? "bg-[#0077FC] text-white shadow-xs"
-                  : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
-              }`}
+              className={`ops-tab ${statusFilter === tab.id ? "is-active" : ""}`}
             >
               {tab.label}
             </button>
@@ -387,33 +373,33 @@ function Orders() {
       </div>
 
       {/* Tabla de Pedidos Refactorizada */}
-      <section className="bg-white border border-neutral-200 rounded-2xl shadow-sm overflow-hidden" aria-label="Lista de pedidos">
+      <section className="ops-table-surface" aria-label="Lista de pedidos">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[900px]">
+          <table className="ops-table min-w-[900px]">
             {/* Encabezados de Columna */}
             <thead>
-              <tr className="bg-neutral-100/80 border-b border-neutral-200 text-[11px] font-extrabold uppercase tracking-wider text-neutral-600 select-none">
+              <tr className="ops-table-head">
                 <th className="py-3.5 px-5 w-[220px]">
                   <div className="flex items-center gap-1.5">
-                    <Package size={14} className="text-[#0077FC]" />
+                    <Package size={14} className="text-[var(--color-accent)]" />
                     <span>Pedido / Unidad</span>
                   </div>
                 </th>
                 <th className="py-3.5 px-5">
                   <div className="flex items-center gap-1.5">
-                    <MapPin size={14} className="text-[#0077FC]" />
+                    <MapPin size={14} className="text-[var(--color-accent)]" />
                     <span>Ruta Asignada (Origen ➔ Destino)</span>
                   </div>
                 </th>
                 <th className="py-3.5 px-5 w-[140px]">
                   <div className="flex items-center gap-1.5">
-                    <Clock size={14} className="text-[#0077FC]" />
+                    <Clock size={14} className="text-[var(--color-accent)]" />
                     <span>ETA Estimada</span>
                   </div>
                 </th>
                 <th className="py-3.5 px-5 w-[220px]">
                   <div className="flex items-center gap-1.5">
-                    <Activity size={14} className="text-[#0077FC]" />
+                    <Activity size={14} className="text-[var(--color-accent)]" />
                     <span>Estado / Alerta</span>
                   </div>
                 </th>
@@ -432,11 +418,7 @@ function Orders() {
                     <tr
                       key={t.id}
                       onClick={() => navigate(`/pedidos/${t.id}`)}
-                      className={`group transition-colors cursor-pointer ${
-                        isAttention
-                          ? "bg-red-50/40 hover:bg-red-50/70 border-l-4 border-l-red-500"
-                          : "hover:bg-blue-50/40"
-                      }`}
+                      className={`ops-table-row group ${isAttention ? "is-critical" : ""}`}
                     >
                       {/* Col 1: Pedido / Unidad */}
                       <td className="py-4 px-5 align-middle">
@@ -445,7 +427,7 @@ function Orders() {
                             <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200/80 tracking-wide">
                               {t.order}
                             </span>
-                            <span className="text-sm font-extrabold text-neutral-900 group-hover:text-[#0077FC] transition-colors">
+                            <span className="text-sm font-extrabold text-neutral-900 group-hover:text-[var(--color-accent)] transition-colors">
                               {t.patente}
                             </span>
                           </div>
@@ -463,13 +445,13 @@ function Orders() {
                             <span className="text-xs font-bold text-neutral-700 bg-neutral-100 px-2 py-0.5 rounded border border-neutral-200/80">
                               {t.origen ?? "Depósito Origen"}
                             </span>
-                            <ArrowRight size={14} className="text-[#0077FC] shrink-0" />
-                            <span className="text-xs font-extrabold text-neutral-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200/80 text-blue-950">
+                            <ArrowRight size={14} className="text-[var(--color-accent)] shrink-0" />
+                            <span className="text-xs font-extrabold bg-blue-50 px-2 py-0.5 rounded border border-blue-200/80 text-blue-950">
                               {t.destino}
                             </span>
                           </div>
                           <div className="text-[11px] text-neutral-500 font-medium flex items-center gap-1">
-                            <span className={isAttention ? "text-red-600 font-bold" : "text-amber-600"}>📍</span>
+                            <MapPin size={12} className={isAttention ? "text-red-600 shrink-0" : "text-neutral-400 shrink-0"} />
                             <span className={isAttention ? "font-bold text-red-900 truncate" : "truncate"}>
                               {t.ubicacion}
                             </span>
@@ -503,11 +485,7 @@ function Orders() {
                             e.stopPropagation();
                             navigate(`/pedidos/${t.id}`);
                           }}
-                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-all group-hover:scale-105 group-hover:shadow-md cursor-pointer ${
-                            isAttention
-                              ? "bg-red-600 hover:bg-red-700 text-white"
-                              : "bg-[#0077FC] hover:bg-[#0055CC] text-white"
-                          }`}
+                          className="ops-button ops-button--primary ops-button--small"
                         >
                           <span>{isAttention ? "Atender" : "Ver viaje"}</span>
                           <ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" />
@@ -527,7 +505,7 @@ function Orders() {
                           setSearchTerm("");
                           setStatusFilter("todos");
                         }}
-                        className="mt-2 text-xs font-bold text-[#0077FC] hover:underline cursor-pointer"
+                        className="mt-2 text-xs font-bold text-[var(--color-accent)] hover:underline cursor-pointer"
                       >
                         Limpiar filtros y buscar de nuevo
                       </button>
@@ -540,7 +518,7 @@ function Orders() {
         </div>
 
         {/* Footer de la tabla */}
-        <div className="px-5 py-3 bg-neutral-50 border-t border-neutral-200 flex items-center justify-between text-xs text-neutral-500">
+        <div className="ops-table-footer">
           <span>Mostrando <strong>{filteredTrips.length}</strong> de <strong>{trips.length}</strong> pedidos activos</span>
           <span className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -573,28 +551,30 @@ function MapCameraController({
   return null;
 }
 
-function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
+function RouteMap({ calls, trip }: { calls: CallLog[]; trip: Trip }) {
   const [selected, setSelected] = useState<number | null>(null);
   const navigate = useNavigate();
-  const defaultCenter = { lat: -34.595, lng: -58.42 };
-  const spots = [
-    { lat: -34.61, lng: -58.43 },
-    { lat: -34.59, lng: -58.4 },
-    { lat: -34.575, lng: -58.366 },
-  ];
-  const destination = { lat: -34.5745, lng: -58.366 };
-  const truckSpot = { lat: -34.62, lng: -58.48 };
+  const fallbackPosition = { lat: -34.6037, lng: -58.3816 };
+  const truckSpot =
+    trip.lat !== undefined && trip.lon !== undefined
+      ? { lat: trip.lat, lng: trip.lon }
+      : trip.ruta?.[0] ?? fallbackPosition;
+  const destination = trip.ruta?.[trip.ruta.length - 1] ?? truckSpot;
+  const defaultCenter = {
+    lat: (truckSpot.lat + destination.lat) / 2,
+    lng: (truckSpot.lng + destination.lng) / 2,
+  };
 
   const selectedCall = selected !== null ? calls[selected] : null;
   const selectedPos =
     selectedCall?.position ??
-    (selected !== null ? (spots[selected] ?? null) : null);
+    (selected !== null ? truckSpot : null);
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const mapId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
 
   return (
-    <section className="map-card border border-neutral-200 shadow-sm rounded-xl overflow-hidden bg-white">
+    <section className="map-card ops-panel">
       <header className="map-header flex items-center justify-between px-5 py-4 border-b border-neutral-200 bg-white">
         <div>
           <h2 className="text-base font-bold text-neutral-900">
@@ -609,14 +589,14 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
           {selected !== null ? (
             <button
               onClick={() => setSelected(null)}
-              className="flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-100 transition-colors shadow-sm cursor-pointer"
+              className="ops-button ops-button--secondary ops-button--small"
             >
               <RotateCcw size={13} />
               <span>Ver toda la ruta</span>
             </button>
           ) : (
             <span className="text-xs font-medium text-neutral-500 tabular-nums">
-              24,8 km · 42 min
+              {trip.eta}
             </span>
           )}
         </div>
@@ -639,14 +619,14 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
             {/* Destination Marker */}
             <AdvancedMarker
               position={destination}
-              title="Puerto destino (Terminal 3)"
+              title={trip.destino}
             >
               <div className="group relative cursor-pointer flex flex-col items-center">
                 <div className="pointer-events-none absolute -top-10 z-30 opacity-0 transition-opacity group-hover:opacity-100 whitespace-nowrap rounded-lg bg-neutral-900 px-2.5 py-1 text-xs font-medium text-white shadow-xl">
-                  ⚓ Terminal 3, Puerto La Plata
+                  <MapPin size={12} /> {trip.destino}
                 </div>
                 <Pin
-                  background="#0077FC"
+                  background="#0A5C8C"
                   borderColor="#fff"
                   glyphColor="#fff"
                 />
@@ -656,11 +636,11 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
             {/* Truck Marker */}
             <AdvancedMarker
               position={truckSpot}
-              title="Ubicación del camión (AF 402 KL)"
+              title={`Ubicación del camión (${trip.patente})`}
             >
               <div className="group relative cursor-pointer flex flex-col items-center">
                 <div className="pointer-events-none absolute -top-10 z-30 opacity-0 transition-opacity group-hover:opacity-100 whitespace-nowrap rounded-lg bg-neutral-900 px-2.5 py-1 text-xs font-medium text-white shadow-xl">
-                  🚛 Camión AF 402 KL · En movimiento
+                  <Truck size={12} /> {trip.patente} · {trip.velocidad > 0 ? `${trip.velocidad} km/h` : "Detenido"}
                 </div>
                 <Pin
                   background="#231F20"
@@ -672,7 +652,7 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
 
             {/* Call Markers with Pulse Aura & Hover Tooltips */}
             {calls.map((c, i) => {
-              const pos = c.position ?? spots[i] ?? spots[spots.length - 1];
+              const pos = c.position ?? truckSpot;
               const isSelected = selected === i;
               const isAttention = c.level === "attention";
               const isCritical = c.level === "critical";
@@ -687,12 +667,12 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
                   <div className="group relative flex cursor-pointer flex-col items-center">
                     {/* Animated Pulse Ring */}
                     <div
-                      className={`absolute -inset-3.5 rounded-full opacity-70 transition-all ${isAttention ? "bg-amber-400 animate-ping" : isCritical ? "bg-red-500 animate-ping" : "bg-teal-400 group-hover:animate-ping"}`}
+                      className={`absolute -inset-2 rounded-full opacity-35 transition-opacity group-hover:opacity-70 ${isAttention ? "bg-amber-400" : isCritical ? "bg-red-500" : "bg-blue-400"}`}
                     />
 
                     {/* Rich Hover Tooltip */}
-                    <div className="pointer-events-none absolute -top-14 z-40 opacity-0 transition-all duration-200 group-hover:opacity-100 group-hover:-translate-y-1">
-                      <div className="flex flex-col gap-0.5 rounded-lg border border-neutral-800 bg-neutral-950/95 p-2.5 text-white shadow-2xl backdrop-blur-md min-w-[210px]">
+                    <div className="pointer-events-none absolute -top-14 z-40 opacity-0 transition-[opacity,transform] duration-200 group-hover:opacity-100 group-hover:-translate-y-1">
+                      <div className="flex flex-col gap-0.5 rounded-lg border border-neutral-800 bg-neutral-950/95 p-2.5 text-white shadow-2xl min-w-[210px]">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
                             {c.time} hs · {isAttention ? "Atención" : "Normal"}
@@ -705,7 +685,7 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
                           {c.title}
                         </p>
                         <p className="text-[11px] text-neutral-400 truncate">
-                          📍 {c.ubicacion ?? "Ubicación en ruta"}
+                          <MapPin size={11} /> {c.ubicacion ?? "Ubicación en ruta"}
                         </p>
                       </div>
                     </div>
@@ -717,7 +697,7 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
                           : isAttention
                             ? "#D97706"
                             : isSelected
-                              ? "#0077FC"
+                              ? "#0A5C8C"
                               : "#67ACFC"
                       }
                       borderColor="#fff"
@@ -731,10 +711,10 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
             <Polyline
               path={[
                 truckSpot,
-                ...calls.map((c, i) => c.position ?? spots[i]),
+                ...calls.map((c) => c.position ?? truckSpot),
                 destination,
               ]}
-              strokeColor="#0077FC"
+              strokeColor="#0A5C8C"
               strokeOpacity={0.95}
               strokeWeight={5}
             />
@@ -765,7 +745,7 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
                   </h3>
 
                   <div className="mt-1 flex items-start gap-1 text-[11px] font-medium text-neutral-600">
-                    <span className="shrink-0 text-emerald-700">📍</span>
+                    <MapPin size={13} className="shrink-0 text-emerald-700" />
                     <span className="leading-tight">
                       {selectedCall.ubicacion ?? "Ubicación en ruta"}
                     </span>
@@ -777,9 +757,9 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
 
                   <button
                     onClick={() =>
-                      navigate(`/pedidos/${tripId}/llamadas/${selectedCall.id}`)
+                      navigate(`/pedidos/${trip.id}/llamadas/${selectedCall.id}`)
                     }
-                    className="mt-3 flex w-full items-center justify-between rounded-lg bg-[#0077FC] px-3 py-2 text-xs font-bold text-white shadow transition-all hover:bg-[#0055CC] hover:shadow-md cursor-pointer"
+                    className="ops-button ops-button--primary ops-button--small mt-3 w-full justify-between"
                   >
                     <span>Ver log y transcripción completa</span>
                     <ChevronRight size={14} />
@@ -825,25 +805,26 @@ function Detail() {
   const trip = trips.find((t) => t.id === tripId);
   if (!trip) return <NotFound />;
   return (
-    <main className="page">
+    <main className="page ops-workspace ops-workspace--detail">
       <Breadcrumb tripId={trip.id} order={trip.order} />
       <div className="detail-header">
-        <p className="eyebrow">{trip.order}</p>
-        <div className="order-title flex items-center gap-4">
-          <h1>{trip.patente}</h1>
+        <div className="ops-record-heading">
+          <div>
+            <h1>{trip.patente}</h1>
+            <p className="sub">
+              {trip.order} · {trip.ubicacion} · {trip.hace}
+            </p>
+          </div>
           <TripStatusBadge state={trip.estado} />
         </div>
-        <p className="sub">
-          {trip.ubicacion} · {trip.hace}
-        </p>
       </div>
       <div className="detail-layout">
-        <RouteMap calls={trip.calls} tripId={trip.id} />
+        <RouteMap calls={trip.calls} trip={trip} />
         <aside className="side-column">
-          <section className="info-card">
+          <section className="info-card ops-panel">
             <header>
               <h2>Transportista</h2>
-              <Phone size={16} color="#0077FC" />
+              <Phone size={16} color="var(--color-accent)" />
             </header>
             <div className="contact">
               <div className="avatar">
@@ -872,7 +853,7 @@ function Detail() {
               </div>
             </div>
           </section>
-          <section className="timeline-card">
+          <section className="timeline-card ops-panel">
             <header>
               <h2>Actividad del pedido</h2>
             </header>
@@ -896,25 +877,37 @@ function CallDetail() {
   const trip = trips.find((t) => t.id === tripId);
   const call = trip?.calls.find((c) => c.id === callId);
   if (!trip || !call) return <NotFound />;
-  const route = [
-    ["08:12", "Depósito Dock Sud", "Salida confirmada · odómetro 18.442 km"],
-    ["08:42", "Av. 9 de Julio", "Llamada 1 · retiro confirmado"],
-    ["09:28", "Acceso Sudeste", "Llamada 2 · congestión detectada"],
-    ["10:06", "Terminal 3", "Llamada 3 · arribo y espera de acceso"],
-  ];
+  const route = trip.eventos.map((event) => ({
+    time: event.hora,
+    place: trip.ubicacion,
+    detail: event.texto,
+  }));
+  const position =
+    trip.lat !== undefined && trip.lon !== undefined
+      ? `${trip.lat.toFixed(4)}, ${trip.lon.toFixed(4)}`
+      : "Sin posición";
+  const stateLabel =
+    trip.estado === "finalizado"
+      ? "Finalizado"
+      : trip.estado === "carga_habilitada" || trip.estado === "en_puerto"
+        ? "Carga habilitada"
+        : trip.estado === "atencion" || trip.estado === "emergencia"
+          ? "Atención"
+          : "En camino";
   return (
-    <main className="page call-page">
+    <main className="page call-page ops-workspace ops-record-page">
       <Breadcrumb
         tripId={trip.id}
         order={trip.order}
         call={`Llamada ${call.time}`}
       />
-      <p className="eyebrow">Registro de llamada · {call.time}</p>
-      <h1>{call.title}</h1>
-      <p className="sub">
-        {trip.conductor} · {trip.phone} · Duración {call.duration}
-      </p>
-      <section className="call-log">
+      <header className="ops-record-header">
+        <span className="ops-page-meta">Registro de llamada · {call.time}</span>
+        <h1>{call.title}</h1>
+        <p>{trip.conductor} · {trip.phone} · Duración {call.duration}</p>
+      </header>
+      <div className="ops-record-layout">
+      <section className="call-log ops-panel">
         <h2>Grabación y transcripción</h2>
         {call.audioUrl ? (
           <div className="recording">
@@ -947,53 +940,54 @@ function CallDetail() {
           ))}
         </div>
       </section>
-      <section className="route-report">
+      <section className="route-report ops-panel">
         <header>
           <div>
-            <p className="eyebrow">Contexto operativo</p>
             <h2>Ruta y telemetría del pedido</h2>
           </div>
-          <span className="status">En ruta planificada</span>
+          <TripStatusBadge state={trip.estado} />
         </header>
         <div className="route-metrics">
           <div>
-            <small>Distancia planificada</small>
-            <strong>24,8 km</strong>
-            <span>24,1 km recorridos</span>
+            <small>Estado del viaje</small>
+            <strong>{stateLabel}</strong>
+            <span>{trip.order}</span>
           </div>
           <div>
-            <small>Tiempo estimado</small>
-            <strong>42 min</strong>
-            <span>+ 8 min por congestión</span>
+            <small>ETA estimada</small>
+            <strong>{trip.eta}</strong>
+            <span>{trip.destino}</span>
           </div>
           <div>
-            <small>Velocidad media</small>
-            <strong>54 km/h</strong>
-            <span>Máxima: 78 km/h</span>
+            <small>Velocidad actual</small>
+            <strong>{trip.velocidad > 0 ? `${trip.velocidad} km/h` : "Detenido"}</strong>
+            <span>{trip.hace}</span>
           </div>
           <div>
-            <small>Precisión GPS</small>
-            <strong>± 6 m</strong>
-            <span>Último ping 10:08:14</span>
+            <small>Última posición</small>
+            <strong>{position}</strong>
+            <span>{trip.ubicacion}</span>
           </div>
         </div>
         <div className="route-log">
           <h3>Hitos de la ruta</h3>
-          {route.map(([time, place, detail]) => (
-            <div className="route-event" key={time}>
-              <time>{time}</time>
+          {route.length === 0 ? (
+            <p className="sub">Sin hitos registrados para este traslado.</p>
+          ) : route.map((event, index) => (
+            <div className="route-event" key={`${event.time}-${index}`}>
+              <time>{event.time}</time>
               <div>
-                <strong>{place}</strong>
-                <span>{detail}</span>
+                <strong>{event.place}</strong>
+                <span>{event.detail}</span>
               </div>
             </div>
           ))}
         </div>
         <footer>
-          Ruta sugerida: Autopista Buenos Aires–La Plata · Fuente: GPS de
-          unidad, geocercas y registro de llamadas.
+          Fuente: backend operativo, telemetría GPS y registro de llamadas.
         </footer>
       </section>
+      </div>
     </main>
   );
 }
@@ -1022,14 +1016,16 @@ function AlertDetail() {
   const critica = alerta.tipo === "emergencia";
 
   return (
-    <main className="page call-page">
-      <p className="eyebrow">Alerta · {alerta.hora} hs</p>
-      <h1>{alerta.titulo}</h1>
-      <p className="sub">
-        {alerta.texto}
-      </p>
+    <main className="page call-page ops-workspace ops-record-page">
+      {trip && <Breadcrumb tripId={trip.id} order={trip.order} call={`Alerta ${alerta.hora}`} />}
+      <header className="ops-record-header">
+        <span className="ops-page-meta">Alerta · {alerta.hora} hs</span>
+        <h1>{alerta.titulo}</h1>
+        <p>{alerta.texto}</p>
+      </header>
 
-      <section className="call-log">
+      <div className="ops-record-layout ops-record-layout--alerts">
+      <section className="call-log ops-panel">
         <h2>Qué se detectó</h2>
         <div className="transcript">
           <p><span className="speaker">Severidad</span>{critica ? "Alta" : "Media"}</p>
@@ -1041,7 +1037,7 @@ function AlertDetail() {
         </div>
       </section>
 
-      <section className="call-log">
+      <section className="call-log ops-panel">
         <h2>Llamada del agente</h2>
         {!llamada ? (
           <p className="sub">
@@ -1077,16 +1073,17 @@ function AlertDetail() {
             </div>
             {trip && (
               <button
-                className="play"
-                style={{ marginTop: 12, width: "auto", padding: "8px 14px" }}
+                className="ops-button ops-button--primary ops-button--small"
                 onClick={() => navigate(`/pedidos/${trip.id}/llamadas/${llamada.id}`)}
               >
-                Ver la llamada completa
+                <span>Ver la llamada completa</span>
+                <ChevronRight size={15} />
               </button>
             )}
           </>
         )}
       </section>
+      </div>
     </main>
   );
 }
@@ -1094,8 +1091,11 @@ function AlertDetail() {
 function AlertsScreen() {
   const { alerts } = useDatos();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
-  const [severityFilter, setSeverityFilter] = useState<string>("todas");
+  const [severityFilter, setSeverityFilter] = useState<string>(() =>
+    searchParams.get("severity") === "critical" ? "criticas" : "todas",
+  );
 
   // Ordenar: Alertas de emergencia/atención primero
   const sortedAlerts = [...alerts].sort((a, b) => {
@@ -1127,106 +1127,77 @@ function AlertsScreen() {
   const resueltasCount = alerts.filter((a) => a.tipo === "resuelto").length;
 
   return (
-    <main className="page max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      {/* Encabezado */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-neutral-200">
+    <main className="page ops-workspace ops-workspace--list">
+      <header className="ops-page-header">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-red-50 text-red-700 border border-red-200 text-xs font-bold uppercase tracking-wider">
-              <Bell size={13} className="text-red-600 animate-pulse" /> Registro de Incidencias
-            </span>
-            <span className="text-xs font-medium text-neutral-500">· Actualizado en tiempo real</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 tracking-tight">
+          <h1>
             Centro de Alertas Operativas
           </h1>
-          <p className="text-sm text-neutral-600 mt-1">
+          <p>
             Historial y estado de alertas detectadas en ruta por el agente de voz y monitoreo de telemetría.
           </p>
         </div>
-      </div>
+        <span className="ops-page-meta">Prioridad por impacto · actualización en vivo</span>
+      </header>
 
       {/* Tarjetas KPI Resumen */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="ops-stat-rail ops-stat-rail--four" aria-label="Filtrar alertas por severidad">
         <button
           onClick={() => setSeverityFilter("todas")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-            severityFilter === "todas"
-              ? "bg-white border-[#0077FC] shadow-md ring-2 ring-[#0077FC]/20"
-              : "bg-white/80 border-neutral-200 hover:border-neutral-300 hover:bg-white"
-          }`}
+          className={`ops-stat-filter ${severityFilter === "todas" ? "is-active" : ""}`}
         >
-          <span className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider flex items-center justify-between">
-            Total Alertas <Layers size={14} className="text-neutral-400" />
-          </span>
-          <span className="text-2xl font-extrabold text-neutral-900 mt-1">{totalCount}</span>
+          <span>Total alertas</span>
+          <strong>{totalCount}</strong>
         </button>
 
         <button
           onClick={() => setSeverityFilter("criticas")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-            severityFilter === "criticas"
-              ? "bg-red-50 border-red-500 shadow-md ring-2 ring-red-500/20"
-              : "bg-white/80 border-neutral-200 hover:border-red-200 hover:bg-red-50/40"
-          }`}
+          className={`ops-stat-filter ops-stat-filter--critical ${severityFilter === "criticas" ? "is-active" : ""}`}
         >
-          <span className="text-[11px] font-bold text-red-700 uppercase tracking-wider flex items-center justify-between">
-            Críticas / Emergencia <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse" />
-          </span>
-          <span className="text-2xl font-extrabold text-red-950 mt-1">{criticalCount}</span>
+          <span>Críticas / emergencia</span>
+          <strong>{criticalCount}</strong>
         </button>
 
         <button
           onClick={() => setSeverityFilter("atencion")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-            severityFilter === "atencion"
-              ? "bg-amber-50 border-amber-500 shadow-md ring-2 ring-amber-500/20"
-              : "bg-white/80 border-neutral-200 hover:border-amber-200 hover:bg-amber-50/40"
-          }`}
+          className={`ops-stat-filter ops-stat-filter--warning ${severityFilter === "atencion" ? "is-active" : ""}`}
         >
-          <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider flex items-center justify-between">
-            En Atención <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-          </span>
-          <span className="text-2xl font-extrabold text-amber-950 mt-1">{atencionCount}</span>
+          <span>En atención</span>
+          <strong>{atencionCount}</strong>
         </button>
 
         <button
           onClick={() => setSeverityFilter("resueltas")}
-          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-            severityFilter === "resueltas"
-              ? "bg-emerald-50 border-emerald-500 shadow-md ring-2 ring-emerald-500/20"
-              : "bg-white/80 border-neutral-200 hover:border-emerald-200 hover:bg-emerald-50/40"
-          }`}
+          className={`ops-stat-filter ${severityFilter === "resueltas" ? "is-active" : ""}`}
         >
-          <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center justify-between">
-            Resueltas <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-          </span>
-          <span className="text-2xl font-extrabold text-emerald-950 mt-1">{resueltasCount}</span>
+          <span>Resueltas</span>
+          <strong>{resueltasCount}</strong>
         </button>
       </div>
 
       {/* Toolbar: Búsqueda y Filtros */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-neutral-200/80 shadow-xs">
-        <div className="relative flex-1 min-w-[240px]">
+      <div className="ops-toolbar">
+        <div className="ops-search">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
           <input
             type="text"
             placeholder="Buscar alerta por título, pedido, patente o ubicación..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0077FC] focus:border-transparent transition-all"
+            className="ops-search__input"
           />
           {searchTerm && (
             <button
               onClick={() => setSearchTerm("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400 hover:text-neutral-700 cursor-pointer"
+              className="ops-search__clear"
+              aria-label="Limpiar búsqueda"
             >
-              ✕
+              <X size={15} />
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+        <div className="ops-tabs">
           {[
             { id: "todas", label: "Todas" },
             { id: "criticas", label: "Críticas" },
@@ -1236,11 +1207,7 @@ function AlertsScreen() {
             <button
               key={tab.id}
               onClick={() => setSeverityFilter(tab.id)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
-                severityFilter === tab.id
-                  ? "bg-[#0077FC] text-white shadow-xs"
-                  : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
-              }`}
+              className={`ops-tab ${severityFilter === tab.id ? "is-active" : ""}`}
             >
               {tab.label}
             </button>
@@ -1249,38 +1216,38 @@ function AlertsScreen() {
       </div>
 
       {/* Tabla de Alertas */}
-      <section className="bg-white border border-neutral-200 rounded-2xl shadow-sm overflow-hidden" aria-label="Lista de alertas">
+      <section className="ops-table-surface" aria-label="Lista de alertas">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[900px]">
+          <table className="ops-table min-w-[900px]">
             <thead>
-              <tr className="bg-neutral-100/80 border-b border-neutral-200 text-[11px] font-extrabold uppercase tracking-wider text-neutral-600 select-none">
+              <tr className="ops-table-head">
                 <th className="py-3.5 px-5">
                   <div className="flex items-center gap-1.5">
-                    <AlertTriangle size={14} className="text-[#0077FC]" />
+                    <AlertTriangle size={14} className="text-[var(--color-accent)]" />
                     <span>Incidencia / Evento</span>
                   </div>
                 </th>
                 <th className="py-3.5 px-5 w-[200px]">
                   <div className="flex items-center gap-1.5">
-                    <Truck size={14} className="text-[#0077FC]" />
+                    <Truck size={14} className="text-[var(--color-accent)]" />
                     <span>Unidad / Conductor</span>
                   </div>
                 </th>
                 <th className="py-3.5 px-5 w-[220px]">
                   <div className="flex items-center gap-1.5">
-                    <MapPin size={14} className="text-[#0077FC]" />
+                    <MapPin size={14} className="text-[var(--color-accent)]" />
                     <span>Ubicación</span>
                   </div>
                 </th>
                 <th className="py-3.5 px-5 w-[160px]">
                   <div className="flex items-center gap-1.5">
-                    <Activity size={14} className="text-[#0077FC]" />
+                    <Activity size={14} className="text-[var(--color-accent)]" />
                     <span>Severidad</span>
                   </div>
                 </th>
                 <th className="py-3.5 px-5 w-[100px]">
                   <div className="flex items-center gap-1.5">
-                    <Clock size={14} className="text-[#0077FC]" />
+                    <Clock size={14} className="text-[var(--color-accent)]" />
                     <span>Hora</span>
                   </div>
                 </th>
@@ -1299,19 +1266,13 @@ function AlertsScreen() {
                     <tr
                       key={a.id}
                       onClick={() => a.tripId && navigate(`/pedidos/${a.tripId}`)}
-                      className={`group transition-colors cursor-pointer ${
-                        isCritical
-                          ? "bg-red-50/40 hover:bg-red-50/70 border-l-4 border-l-red-600"
-                          : isAtencion
-                          ? "bg-amber-50/30 hover:bg-amber-50/60 border-l-4 border-l-amber-500"
-                          : "hover:bg-blue-50/40"
-                      }`}
+                      className={`ops-table-row group ${isCritical ? "is-critical" : isAtencion ? "is-warning" : ""}`}
                     >
                       {/* Incidencia / Detalle */}
                       <td className="py-4 px-5 align-middle">
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-extrabold text-sm text-neutral-900 group-hover:text-[#0077FC] transition-colors">
+                            <span className="font-extrabold text-sm text-neutral-900 group-hover:text-[var(--color-accent)] transition-colors">
                               {a.titulo}
                             </span>
                             <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200/80">
@@ -1334,7 +1295,7 @@ function AlertsScreen() {
                       <td className="py-4 px-5 align-middle">
                         <div className="flex flex-col gap-0.5">
                           <span className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
-                            📍 {a.ubicacion}
+                            <MapPin size={12} className="shrink-0 text-neutral-400" /> {a.ubicacion}
                           </span>
                           {a.hace && <span className="text-[11px] text-neutral-500">{a.hace}</span>}
                         </div>
@@ -1375,11 +1336,7 @@ function AlertsScreen() {
                             e.stopPropagation();
                             navigate(`/alertas/${a.id}`);
                           }}
-                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-all group-hover:scale-105 group-hover:shadow-md cursor-pointer ${
-                            isCritical
-                              ? "bg-red-600 hover:bg-red-700 text-white"
-                              : "bg-[#0077FC] hover:bg-[#0055CC] text-white"
-                          }`}
+                          className="ops-button ops-button--primary ops-button--small"
                         >
                           <span>{isCritical ? "Atender" : "Ver pedido"}</span>
                           <ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" />
@@ -1402,7 +1359,7 @@ function AlertsScreen() {
           </table>
         </div>
 
-        <div className="px-5 py-3 bg-neutral-50 border-t border-neutral-200 flex items-center justify-between text-xs text-neutral-500">
+        <div className="ops-table-footer">
           <span>Mostrando <strong>{filteredAlerts.length}</strong> de <strong>{alerts.length}</strong> alertas registradas</span>
           <span className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -1416,24 +1373,26 @@ function AlertsScreen() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      {/* el provider envuelve al Layout: el Header muestra el contador de
-          alertas y tambien necesita los datos vivos */}
-      <DatosProvider>
-        <Layout>
-          <Routes>
-          <Route path="/" element={<Orders />} />
-          <Route path="/alertas" element={<AlertsScreen />} />
-          <Route path="/alertas/:alertId" element={<AlertDetail />} />
-          <Route path="/pedidos/:tripId" element={<Detail />} />
-          <Route
-            path="/pedidos/:tripId/llamadas/:callId"
-            element={<CallDetail />}
-          />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Layout>
-      </DatosProvider>
-    </BrowserRouter>
+    <ThemeProvider>
+      <LanguageProvider>
+        <BrowserRouter>
+          <DatosProvider>
+            <div data-i18n-root>
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<OperationsHome />} />
+                  <Route path="/pedidos" element={<Orders />} />
+                  <Route path="/alertas" element={<AlertsScreen />} />
+                  <Route path="/alertas/:alertId" element={<AlertDetail />} />
+                  <Route path="/pedidos/:tripId" element={<Detail />} />
+                  <Route path="/pedidos/:tripId/llamadas/:callId" element={<CallDetail />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Layout>
+            </div>
+          </DatosProvider>
+        </BrowserRouter>
+      </LanguageProvider>
+    </ThemeProvider>
   );
 }

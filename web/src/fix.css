@@ -50,7 +50,7 @@
 .map-pin:has(+ .map-popup) { z-index: 13; }
 .pin-hover { z-index: 15; }
 
-.map-popup button:not(.popup-close) { min-height: 26px; }
+.map-popup button:not(.popup-close) { min-height: 34px; }
 
 /* ─── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 650px) {
