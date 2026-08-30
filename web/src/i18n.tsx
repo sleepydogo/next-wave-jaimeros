@@ -35,6 +35,8 @@ const english: Record<string, string> = {
   "Gestión de Pedidos y Alertas en Ruta": "Order & route alert management",
   "Supervisión operativa centralizada: estado de viaje, ruta asignada y resolución prioritaria de incidentes.":
     "Centralized operations monitoring: trip status, assigned route, and prioritized incident response.",
+  "5 unidades · actualización en vivo": "5 units · live updates",
+  "Prioridad por impacto · actualización en vivo": "Impact-first priority · live updates",
   "Hay {count} viaje(s) con alerta prioritaria que requieren atención del monitorista":
     "{count} trip(s) have a priority alert requiring operator attention",
   "Ver alertas ({count})": "View alerts ({count})",
@@ -43,6 +45,7 @@ const english: Record<string, string> = {
     " trip(s) with a priority alert requiring operator attention",
   "Ver alertas (": "View alerts (",
   "Total Pedidos": "Total orders",
+  "Total pedidos": "Total orders",
   Atención: "Attention",
   "En camino": "En route",
   "Carga habilitada": "Loading authorized",
@@ -70,8 +73,20 @@ const english: Record<string, string> = {
   "Ruta recomendada y telemetría": "Recommended route & telemetry",
   "Haz clic en cualquier hito para enfocar la cámara y desplegar el registro exacto":
     "Click any milestone to focus the map and view the exact record",
+  "Ver toda la ruta": "View full route",
+  "Ruta planificada": "Planned route",
+  "Pines de llamadas e hitos": "Call and milestone pins",
+  "Pines interactivos con zoom automático y detalle exacto":
+    "Interactive pins with automatic zoom and exact detail",
+  "Clic para hacer zoom": "Click to zoom",
   "Restablecer vista": "Reset view",
   "Hitos de la ruta": "Route milestones",
+  "Salida confirmada · odómetro 18.442 km": "Departure confirmed · odometer 18,442 km",
+  "Llamada 1 · retiro confirmado": "Call 1 · pickup confirmed",
+  "Llamada 2 · congestión detectada": "Call 2 · congestion detected",
+  "Llamada 3 · arribo y espera de acceso": "Call 3 · arrival and access wait",
+  "Ruta sugerida: Autopista Buenos Aires–La Plata · Fuente: GPS de unidad, geocercas y registro de llamadas.":
+    "Suggested route: Buenos Aires–La Plata Highway · Source: vehicle GPS, geofences, and call log.",
   "Llamada del agente": "Agent call",
   "Alerta de Atención": "Attention alert",
   "Registro Normal": "Normal record",
@@ -90,7 +105,9 @@ const english: Record<string, string> = {
   Velocidad: "Speed",
   "Actividad del pedido": "Order activity",
   "Registro de llamada · {time}": "Call record · {time}",
+  "Registro de llamada ·": "Call record ·",
   "Grabación y transcripción": "Recording & transcript",
+  "· Duración": "· Duration",
   "Sin grabación": "No recording",
   "No hay transcripción disponible.": "No transcript available.",
   "Contexto operativo": "Operational context",
@@ -105,6 +122,7 @@ const english: Record<string, string> = {
   "Precisión GPS": "GPS accuracy",
   "Último ping 10:08:14": "Last ping 10:08:14",
   "Alerta · {time} hs": "Alert · {time}",
+  "Alerta ·": "Alert ·",
   "Qué se detectó": "What was detected",
   Severidad: "Severity",
   Alta: "High",
@@ -122,8 +140,11 @@ const english: Record<string, string> = {
   "Historial y estado de alertas detectadas en ruta por el agente de voz y monitoreo de telemetría.":
     "History and status of route alerts detected by the voice agent and telemetry monitoring.",
   "Total Alertas": "Total alerts",
+  "Total alertas": "Total alerts",
   "Críticas / Emergencia": "Critical / emergency",
+  "Críticas / emergencia": "Critical / emergency",
   "En Atención": "Needs attention",
+  "En atención": "Needs attention",
   Resueltas: "Resolved",
   "Buscar alerta por título, pedido, patente o ubicación...":
     "Search alerts by title, order, license plate, or location...",
