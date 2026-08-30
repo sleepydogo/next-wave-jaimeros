@@ -7,16 +7,21 @@ Flujo: Twilio llama -> /voice devuelve TwiML con <Gather input="speech">
 import time
 from xml.sax.saxutils import escape
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Form, HTTPException, Request, WebSocket
 from fastapi.responses import Response
 from twilio.request_validator import RequestValidator
 
-from ..agent import caller
-from ..config import PUBLIC_URL, TWILIO_AUTH_TOKEN, VALIDATE_TWILIO_SIGNATURE
+from ..agent import caller, realtime
+from ..config import (PUBLIC_URL, TWILIO_AUTH_TOKEN,
+                      VALIDATE_TWILIO_SIGNATURE, VOICE_MODE)
 
 router = APIRouter(prefix="/twilio", tags=["twilio"])
 
-VOICE = 'voice="Polly.Mia" language="es-MX"'
+# Mia-Neural en vez de Mia: las voces neurales de Polly suenan bastante mas
+# humanas. El precio por caracter es mayor, pero el texto que decimos es corto.
+VOICE = 'voice="Polly.Mia-Neural" language="es-MX"'
+# rate 96%: apenas mas lento que el default, se entiende mejor por telefono
+PROSODY = '<prosody rate="96%">{}</prosody>' 
 
 
 def _twiml(xml: str):
@@ -27,13 +32,14 @@ def _twiml(xml: str):
 def _ask(call_id: str, text: str):
     return _twiml(
         f'<Gather input="speech" language="es-AR" speechTimeout="auto" '
+        f'bargeIn="true" '
         f'action="{PUBLIC_URL}/twilio/gather/{call_id}" method="POST">'
-        f'<Say {VOICE}>{escape(text)}</Say></Gather>'
+        f'<Say {VOICE}>{PROSODY.format(escape(text))}</Say></Gather>'
         f'<Say {VOICE}>No te escuche. Te vuelvo a llamar en un rato.</Say>')
 
 
 def _bye(text: str):
-    return _twiml(f'<Say {VOICE}>{escape(text)}</Say><Hangup/>')
+    return _twiml(f'<Say {VOICE}>{PROSODY.format(escape(text))}</Say><Hangup/>')
 
 
 @router.post("/voice/{call_id}", summary="Arranque de la llamada (lo llama Twilio)")
@@ -51,6 +57,12 @@ async def voice(call_id: str, request: Request):
         return _bye("Hubo un problema con la llamada. Perdon.")
     s["last_ts"] = time.time()
     await caller.save_session(call_id, s)
+
+    if VOICE_MODE == "realtime":
+        # el audio pasa a viajar por el websocket; ya no hay <Say> ni <Gather>
+        ws = PUBLIC_URL.replace("https://", "wss://").replace("http://", "ws://")
+        return _twiml(f'<Connect><Stream url="{ws}/twilio/stream/{call_id}"/></Connect>')
+
     return _ask(call_id, s["history"][0]["content"])
 
 
@@ -111,3 +123,21 @@ def _validate_signature(request: Request, form):
         url += f"?{request.url.query}"
     if not RequestValidator(TWILIO_AUTH_TOKEN).validate(url, form, signature):
         raise HTTPException(status_code=403, detail="firma Twilio invalida")
+
+
+@router.websocket("/stream/{call_id}")
+async def stream(websocket: WebSocket, call_id: str):
+    """Audio bidireccional con Twilio Media Streams (solo con VOICE_MODE=realtime).
+
+    No es HTTP: Twilio abre este WebSocket desde el `<Connect><Stream>` que
+    devuelve `/voice`. El puente con OpenAI Realtime vive en `agent/realtime.py`.
+    """
+    await websocket.accept()
+    s = await caller.load_session(call_id)
+    if not s:
+        await websocket.close()
+        return
+    transcript = await realtime.bridge(websocket, s)
+    if transcript:
+        s["history"] = [{"role": "assistant", "content": "\n".join(transcript)}]
+        await caller.save_session(call_id, s)

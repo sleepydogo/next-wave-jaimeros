@@ -12,6 +12,7 @@ dependencies = [
     "openai>=1.55",
     "aio-pika>=9.5",
     "python-multipart>=0.0.9",
+    "websockets>=13",
 ]
 
 [tool.setuptools.packages.find]

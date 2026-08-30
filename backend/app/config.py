@@ -17,6 +17,14 @@ TWILIO_FROM = os.getenv("TWILIO_FROM", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
+# "gather"   -> Twilio transcribe, el brain responde, voz de Polly (turnos rigidos)
+# "realtime" -> audio bidireccional con OpenAI Realtime, voz de OpenAI, se lo
+#               puede interrumpir. Mas natural y bastante mas caro.
+VOICE_MODE = os.getenv("VOICE_MODE", "gather")
+OPENAI_REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime-2.1-mini")
+REALTIME_VOICE = os.getenv("REALTIME_VOICE", "coral")
+AGENT_NAME = os.getenv("AGENT_NAME", "Marina")
+
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
 
 SIMULATE_CALLS = os.getenv("SIMULATE_CALLS", "1") == "1"

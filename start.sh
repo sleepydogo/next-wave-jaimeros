@@ -3,6 +3,7 @@
 #
 #   ./start.sh          levanta y deja datos de demo cargados
 #   ./start.sh --clean  ademas borra la base y arranca de cero
+#   ./start.sh --calls  ademas levanta ngrok y hace llamadas REALES por Twilio
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -20,17 +21,57 @@ if ! command -v node > /dev/null 2>&1; then
   exit 1
 fi
 
-# ── Limpieza opcional ─────────────────────────────────────────────────────────
+# ── Flags ─────────────────────────────────────────────────────────────────────
 
-if [[ "${1:-}" == "--clean" ]]; then
+CLEAN=0
+CALLS=0
+for arg in "$@"; do
+  case "$arg" in
+    --clean) CLEAN=1 ;;
+    --calls) CALLS=1 ;;
+    *) echo "flag desconocido: $arg"; exit 1 ;;
+  esac
+done
+
+if [[ $CLEAN -eq 1 ]]; then
   echo "==> borrando datos previos"
   docker compose down -v > /dev/null 2>&1 || true
+fi
+
+# ── Llamadas reales: chequear config antes de gastar plata ───────────────────
+
+PROFILE=""
+if [[ $CALLS -eq 1 ]]; then
+  [[ -f .env ]] && set -a && . ./.env && set +a
+  FALTAN=""
+  for k in TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN TWILIO_FROM DEMO_WORKER_PHONE \
+           NGROK_AUTHTOKEN NGROK_DOMAIN PUBLIC_URL OPENAI_API_KEY; do
+    [[ -z "${!k:-}" ]] && FALTAN="$FALTAN $k"
+  done
+  if [[ -n "$FALTAN" ]]; then
+    echo "❌  faltan estas variables en .env para llamar de verdad:"
+    for k in $FALTAN; do echo "      $k"; done
+    exit 1
+  fi
+  if [[ "${SIMULATE_CALLS:-1}" != "0" ]]; then
+    echo "❌  poné SIMULATE_CALLS=0 en .env para que las llamadas salgan de verdad."
+    exit 1
+  fi
+  if [[ "$PUBLIC_URL" != "https://$NGROK_DOMAIN" ]]; then
+    echo "❌  PUBLIC_URL tiene que ser https://\$NGROK_DOMAIN"
+    echo "      PUBLIC_URL=$PUBLIC_URL"
+    echo "      esperado=https://$NGROK_DOMAIN"
+    exit 1
+  fi
+  PROFILE="--profile voice"
+  echo "==> modo LLAMADAS REALES: se va a llamar a $DEMO_WORKER_PHONE y gastar saldo"
 fi
 
 # ── Docker: Redis + RabbitMQ + Backend ───────────────────────────────────────
 
 echo "==> levantando redis, rabbitmq y backend"
-docker compose up -d --build
+# sin comillas a proposito: PROFILE es "" o "--profile voice"
+docker compose $PROFILE up -d --build
 
 echo "==> esperando a que el backend responda..."
 for i in $(seq 1 60); do
@@ -100,7 +141,8 @@ cat <<EOF
   Swagger .......... http://localhost:8000/docs
   Web .............. http://localhost:5173
   Mobile ........... Expo (escanea el QR de arriba con Expo Go)
-  RabbitMQ ......... http://localhost:15672   (guest / guest)
+  RabbitMQ ......... http://localhost:15672   (guest / guest)$(
+    [[ $CALLS -eq 1 ]] && printf '\n  ngrok ............ %s (inspector en http://localhost:4040)' "$PUBLIC_URL")
 
   Viaje de demo .... $TRIP
   Conductor ........ driver_01
