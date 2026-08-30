@@ -1,5 +1,11 @@
 export type TripState =
-  "en_ruta" | "en_puerto" | "carga_habilitada" | "emergencia";
+  | "en_camino"
+  | "carga_habilitada"
+  | "atencion"
+  | "finalizado"
+  | "en_ruta"
+  | "en_puerto"
+  | "emergencia";
 export interface CallLog {
   id: string;
   time: string;
@@ -23,6 +29,7 @@ export interface Trip {
   conductor: string;
   phone: string;
   estado: TripState;
+  origen?: string;
   ubicacion: string;
   destino: string;
   hace: string;
@@ -35,11 +42,22 @@ export interface Trip {
   ruta?: { lat: number; lng: number }[];
 }
 export type AlertType = "emergencia" | "resuelto" | "atencion";
+export type AlertSeverity = "critica" | "atencion" | "info" | "resuelta";
+
 export interface Alert {
   id: string;
+  tripId?: string;
+  order: string;
+  patente: string;
+  conductor: string;
   tipo: AlertType;
+  severidad?: AlertSeverity;
+  titulo: string;
   texto: string;
+  ubicacion: string;
   hora: string;
+  hace?: string;
+  estado?: "pendiente" | "en_gestion" | "resuelta";
 }
 export interface Call {
   id: string;

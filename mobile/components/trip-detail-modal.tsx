@@ -67,7 +67,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   backdrop: {
-    backgroundColor: "rgba(17,17,17,0.35)",
+    backgroundColor: "rgba(35,31,32,0.4)",
     flex: 1,
     justifyContent: "flex-end",
   },
@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
   },
   handle: {
     alignSelf: "center",
-    backgroundColor: "#E5E5E5",
+    backgroundColor: "#E8E8E8",
     borderRadius: 4,
     height: 5,
     width: 36,
@@ -91,12 +91,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
   },
-  title: { color: "#111111", fontSize: 20, fontWeight: "600" },
-  close: { color: "#0A5C8C", fontSize: 15, fontWeight: "600" },
-  destination: { color: "#111111", fontSize: 24, fontWeight: "600" },
-  muted: { color: "#6B6B6B", fontSize: 14 },
+  title:       { color: "#231F20", fontSize: 20, fontWeight: "600" },
+  close:       { color: "#0077FC", fontSize: 15, fontWeight: "600" },
+  destination: { color: "#231F20", fontSize: 24, fontWeight: "600" },
+  muted:       { color: "#6B6B6B", fontSize: 14 },
   stats: {
-    borderColor: "#E5E5E5",
+    borderColor: "#E8E8E8",
     borderRadius: 12,
     borderWidth: 1,
     flexDirection: "row",
@@ -104,5 +104,5 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   label: { color: "#6B6B6B", fontSize: 12 },
-  value: { color: "#111111", fontSize: 16, fontWeight: "600", marginTop: 4 },
+  value: { color: "#231F20", fontSize: 16, fontWeight: "600", marginTop: 4 },
 });

@@ -14,10 +14,13 @@ export const COLOR = {
 } as const;
 
 export const STATE_META: Record<TripState, StateMetaItem> = {
-  en_ruta: { label: "En ruta", color: COLOR.accent },
-  en_puerto: { label: "En puerto", color: COLOR.warning },
-  carga_habilitada: { label: "Carga habilitada", color: COLOR.success },
-  emergencia: { label: "Emergencia", color: COLOR.critical },
+  en_camino: { label: "En camino", color: "#10B981" },
+  en_ruta: { label: "En camino", color: "#10B981" },
+  carga_habilitada: { label: "Carga habilitada", color: "#0077FC" },
+  en_puerto: { label: "Carga habilitada", color: "#0077FC" },
+  atencion: { label: "Atención", color: "#F59E0B" },
+  emergencia: { label: "Atención", color: "#EF4444" },
+  finalizado: { label: "Finalizado", color: "#64748B" },
 };
 
 export const ALERT_META: Record<AlertType, AlertMetaItem> = {
