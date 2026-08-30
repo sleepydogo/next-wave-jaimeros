@@ -2,6 +2,8 @@
 
 Hackathon Yuno x Nauta — challenge #4 "The Agent on the Line".
 
+**Submission flight log:** [`docs/FLIGHT_LOG.md`](docs/FLIGHT_LOG.md)
+
 Automatiza el trabajo del **monitorista**: hoy una persona mira la posición del
 camión en una PC, llama al conductor cuando llega al puerto para ver si está
 disponible, y lo vuelve a llamar cuando el puerto habilita la carga. El agente

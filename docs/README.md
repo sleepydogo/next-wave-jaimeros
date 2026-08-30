@@ -2,6 +2,8 @@
 
 ## Dónde está la documentación
 
+- **Flight log / decision log**: [`FLIGHT_LOG.md`](./FLIGHT_LOG.md) — decisiones,
+  trade-offs, cambios de rumbo, evidencia en commits y riesgos abiertos.
 - **API**: Swagger en <http://localhost:8000/docs> con el backend corriendo.
   Los 18 endpoints, agrupados por audiencia (`driver`, `ops`, `twilio`), cada
   uno explicando qué evento dispara y qué devuelve. La portada tiene el
