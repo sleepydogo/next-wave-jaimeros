@@ -5,8 +5,6 @@ type ActivityPoint = {
 
 type OperationsPulseProps = {
   points: ActivityPoint[];
-  activeTrips: number;
-  criticalAlerts: number;
   locale: "en" | "es";
 };
 
@@ -16,7 +14,7 @@ const LEVEL_Y = {
   critical: 38,
 };
 
-export function OperationsPulse({ points, activeTrips, criticalAlerts, locale }: OperationsPulseProps) {
+export function OperationsPulse({ points, locale }: OperationsPulseProps) {
   const isEnglish = locale === "en";
   const visiblePoints = points.slice(-5);
   const coordinates = visiblePoints.map((point, index) => ({
@@ -31,25 +29,17 @@ export function OperationsPulse({ points, activeTrips, criticalAlerts, locale }:
   const copy = isEnglish
     ? {
         title: "Agent activity",
-        live: "Live signal",
+        live: "Current shift",
         description: "Mock activity trace for agent calls during the current shift.",
-        calls: "agent calls",
-        trips: "active transfers",
-        critical: "critical alert",
-        point: "Agent call",
       }
     : {
         title: "Actividad del agente",
-        live: "Señal en vivo",
+        live: "Turno actual",
         description: "Traza mock de llamadas del agente durante el turno actual.",
-        calls: "llamadas del agente",
-        trips: "traslados activos",
-        critical: "alerta crítica",
-        point: "Llamada del agente",
       };
 
   return (
-    <figure className="operations-pulse" tabIndex={0} aria-labelledby="operations-pulse-title">
+    <figure className="operations-pulse" aria-labelledby="operations-pulse-title">
       <figcaption className="operations-pulse__header">
         <span id="operations-pulse-title">{copy.title}</span>
         <span className="operations-pulse__live"><i aria-hidden="true" />{copy.live}</span>
@@ -68,9 +58,6 @@ export function OperationsPulse({ points, activeTrips, criticalAlerts, locale }:
           <g
             className={`operations-pulse__point operations-pulse__point--${point.level}`}
             key={`${point.time}-${index}`}
-            tabIndex={0}
-            role="group"
-            aria-label={`${copy.point} ${point.time}`}
           >
             <circle cx={point.x} cy={point.y} r="5" />
             <circle className="operations-pulse__point-ring" cx={point.x} cy={point.y} r="10" />
@@ -79,11 +66,6 @@ export function OperationsPulse({ points, activeTrips, criticalAlerts, locale }:
         ))}
       </svg>
 
-      <div className="operations-pulse__summary" aria-label={copy.description}>
-        <span><strong>{points.length}</strong> {copy.calls}</span>
-        <span><strong>{activeTrips}</strong> {copy.trips}</span>
-        <span className="operations-pulse__critical"><strong>{criticalAlerts}</strong> {copy.critical}</span>
-      </div>
     </figure>
   );
 }
