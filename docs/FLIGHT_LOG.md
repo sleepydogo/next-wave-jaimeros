@@ -7,8 +7,7 @@ Period covered: 2026-08-29 to 2026-08-30.
 ## About this log
 
 This log reconstructs the decisions made while building NextWave, later branded
-as 21agents. It was prepared for submission from the complete Git history, six
-merged pull requests, surviving branches, source code and project Markdown.
+as 21stAgent. It was prepared for submission from the complete hackaton history.
 
 The original team did not write every decision down at the moment it happened.
 To avoid inventing a cleaner story after the fact, every entry identifies its
@@ -83,12 +82,6 @@ instead of hiding it.
 environment variables.
 
 **Alternatives:** Commit demo credentials and state to make setup easier.
-
-**Trade-off:** Every developer must configure a local `.env`, but secrets and
-personal operational data stay out of repository history.
-
-**Outcome:** `.env.example` became the public configuration contract. Real
-tokens and phone numbers remain local.
 
 ### FL-003 - Use one process, but enforce internal boundaries
 
@@ -885,16 +878,16 @@ simulators, Swagger and provider smoke tests.
 
 ## Decisions that changed
 
-| Earlier decision | Later decision | Why it changed |
-|---|---|---|
-| Build only folder structure | Keep an unexpectedly complete vertical slice | Working software accelerated the hackathon, despite process debt |
-| Redis pub/sub as practical default | RabbitMQ in Compose, Redis fallback locally | Durable delivery became valuable once modules integrated |
-| Twilio Gather only | Gather plus selectable OpenAI Realtime | Natural interruption and pacing justified added complexity |
-| Email + WhatsApp dispatcher | Dashboard + Resend email | WhatsApp onboarding and an unsafe destination mapping blocked the demo |
-| Synchronous ping detection | Redis-backed asynchronous detector | API latency and buffering mattered more than immediate status |
-| UI backed by mocks | UI backed only by live API data | Visual work finished and integration correctness became the priority |
-| Seed startup pings | Seed no automatic pings | Any automatic detection could trigger a paid real call |
-| Show latest truck position with calls | Match nearest ping by timestamp | Historical incidents need historical location |
+| Earlier decision                      | Later decision                               | Why it changed                                                         |
+| ------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------- |
+| Build only folder structure           | Keep an unexpectedly complete vertical slice | Working software accelerated the hackathon, despite process debt       |
+| Redis pub/sub as practical default    | RabbitMQ in Compose, Redis fallback locally  | Durable delivery became valuable once modules integrated               |
+| Twilio Gather only                    | Gather plus selectable OpenAI Realtime       | Natural interruption and pacing justified added complexity             |
+| Email + WhatsApp dispatcher           | Dashboard + Resend email                     | WhatsApp onboarding and an unsafe destination mapping blocked the demo |
+| Synchronous ping detection            | Redis-backed asynchronous detector           | API latency and buffering mattered more than immediate status          |
+| UI backed by mocks                    | UI backed only by live API data              | Visual work finished and integration correctness became the priority   |
+| Seed startup pings                    | Seed no automatic pings                      | Any automatic detection could trigger a paid real call                 |
+| Show latest truck position with calls | Match nearest ping by timestamp              | Historical incidents need historical location                          |
 
 ## Deliberately deferred
 
