@@ -34,7 +34,7 @@ import {
   Polyline,
   useMap,
 } from "@vis.gl/react-google-maps";
-import { alerts, trips } from "./data/mockData";
+import { DatosProvider, useDatos } from "./useDatos";
 import type { CallLog, TripState } from "./types/dashboard";
 import "./App.css";
 import "./route.css";
@@ -90,6 +90,7 @@ export function TripStatusBadge({ state }: { state: TripState }) {
 }
 
 function Header() {
+  const { alerts } = useDatos();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -189,6 +190,7 @@ function Breadcrumb({
   );
 }
 function Orders() {
+  const { trips } = useDatos();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("todos");
@@ -818,6 +820,7 @@ function NotFound() {
   );
 }
 function Detail() {
+  const { trips } = useDatos();
   const { tripId } = useParams();
   const trip = trips.find((t) => t.id === tripId);
   if (!trip) return <NotFound />;
@@ -888,6 +891,7 @@ function Detail() {
   );
 }
 function CallDetail() {
+  const { trips } = useDatos();
   const { tripId, callId } = useParams();
   const trip = trips.find((t) => t.id === tripId);
   const call = trip?.calls.find((c) => c.id === callId);
@@ -912,13 +916,28 @@ function CallDetail() {
       </p>
       <section className="call-log">
         <h2>Grabación y transcripción</h2>
-        <div className="recording">
-          <button className="play" aria-label="Reproducir llamada">
-            <Play size={15} fill="currentColor" />
-          </button>
-          <div className="wave" />
-          <span className="eta">{call.duration}</span>
-        </div>
+        {call.audioUrl ? (
+          <div className="recording">
+            {/* el wav lo graba el propio agente durante la llamada */}
+            <audio controls preload="metadata" src={call.audioUrl} style={{ width: "100%" }}>
+              Tu navegador no puede reproducir el audio.
+            </audio>
+          </div>
+        ) : (
+          <div className="recording">
+            <button className="play" aria-label="Reproducir llamada" disabled>
+              <Play size={15} fill="currentColor" />
+            </button>
+            <div className="wave" />
+            <span className="eta">Sin grabación</span>
+          </div>
+        )}
+        {call.riesgoVoz !== undefined && (
+          <p className="sub" style={{ marginTop: 8 }}>
+            Riesgo de voz {call.riesgoVoz}
+            {call.costo ? ` · costo USD ${call.costo.toFixed(4)}` : ""}
+          </p>
+        )}
         <div className="transcript">
           {call.transcript.map((l, i) => (
             <p key={i}>
@@ -978,7 +997,102 @@ function CallDetail() {
     </main>
   );
 }
+/** Detalle de una alerta: que paso, y la llamada que el agente hizo por eso.
+ *
+ * La alerta y la llamada no estan unidas por una FK: se vinculan por viaje y
+ * cercania en el tiempo, que es como ocurren (el agente llama al detectar el
+ * evento). Tomamos la llamada mas cercana dentro de una ventana de 2 minutos.
+ */
+function AlertDetail() {
+  const { trips, alerts } = useDatos();
+  const { alertId } = useParams();
+  const navigate = useNavigate();
+
+  const alerta = alerts.find((a) => a.id === alertId);
+  if (!alerta) return <NotFound />;
+
+  const trip = trips.find((t) => t.id === alerta.tripId);
+  // La llamada arranca justo despues de la alerta (el agente reacciona al
+  // evento), asi que buscamos la mas cercana en el tiempo dentro de 5 minutos.
+  const cerca = (c: CallLog) => Math.abs((c.ts ?? 0) - (alerta.ts ?? 0));
+  const llamada = trip?.calls
+    .filter((c) => c.ts && alerta.ts && cerca(c) < 300)
+    .sort((a, b) => cerca(a) - cerca(b))[0];
+
+  const critica = alerta.tipo === "emergencia";
+
+  return (
+    <main className="page call-page">
+      <p className="eyebrow">Alerta · {alerta.hora} hs</p>
+      <h1>{alerta.titulo}</h1>
+      <p className="sub">
+        {alerta.texto}
+      </p>
+
+      <section className="call-log">
+        <h2>Qué se detectó</h2>
+        <div className="transcript">
+          <p><span className="speaker">Severidad</span>{critica ? "Alta" : "Media"}</p>
+          <p><span className="speaker">Viaje</span>{alerta.tripId ?? "—"}</p>
+          <p><span className="speaker">Conductor</span>{trip?.conductor ?? alerta.conductor}</p>
+          {alerta.canales && (
+            <p><span className="speaker">Notificado por</span>{alerta.canales}</p>
+          )}
+        </div>
+      </section>
+
+      <section className="call-log">
+        <h2>Llamada del agente</h2>
+        {!llamada ? (
+          <p className="sub">
+            Todavía no hay una llamada asociada a esta alerta.
+          </p>
+        ) : (
+          <>
+            {llamada.audioUrl ? (
+              <div className="recording">
+                <audio controls preload="metadata" src={llamada.audioUrl} style={{ width: "100%" }}>
+                  Tu navegador no puede reproducir el audio.
+                </audio>
+              </div>
+            ) : (
+              <p className="sub">Sin grabación disponible para esta llamada.</p>
+            )}
+            <p className="sub" style={{ marginTop: 8 }}>
+              {llamada.title} · duración {llamada.duration}
+              {llamada.riesgoVoz !== undefined ? ` · riesgo de voz ${llamada.riesgoVoz}` : ""}
+              {llamada.costo ? ` · USD ${llamada.costo.toFixed(4)}` : ""}
+            </p>
+            <div className="transcript">
+              {llamada.transcript.length === 0 ? (
+                <p>Sin transcripción.</p>
+              ) : (
+                llamada.transcript.map((l, i) => (
+                  <p key={i}>
+                    <span className="speaker">{l.speaker}</span>
+                    {l.text}
+                  </p>
+                ))
+              )}
+            </div>
+            {trip && (
+              <button
+                className="play"
+                style={{ marginTop: 12, width: "auto", padding: "8px 14px" }}
+                onClick={() => navigate(`/pedidos/${trip.id}/llamadas/${llamada.id}`)}
+              >
+                Ver la llamada completa
+              </button>
+            )}
+          </>
+        )}
+      </section>
+    </main>
+  );
+}
+
 function AlertsScreen() {
+  const { alerts } = useDatos();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [severityFilter, setSeverityFilter] = useState<string>("todas");
@@ -1259,7 +1373,7 @@ function AlertsScreen() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (a.tripId) navigate(`/pedidos/${a.tripId}`);
+                            navigate(`/alertas/${a.id}`);
                           }}
                           className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-all group-hover:scale-105 group-hover:shadow-md cursor-pointer ${
                             isCritical
@@ -1303,18 +1417,23 @@ function AlertsScreen() {
 export default function App() {
   return (
     <BrowserRouter>
-      <Layout>
-        <Routes>
+      {/* el provider envuelve al Layout: el Header muestra el contador de
+          alertas y tambien necesita los datos vivos */}
+      <DatosProvider>
+        <Layout>
+          <Routes>
           <Route path="/" element={<Orders />} />
           <Route path="/alertas" element={<AlertsScreen />} />
+          <Route path="/alertas/:alertId" element={<AlertDetail />} />
           <Route path="/pedidos/:tripId" element={<Detail />} />
           <Route
             path="/pedidos/:tripId/llamadas/:callId"
             element={<CallDetail />}
           />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Layout>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Layout>
+      </DatosProvider>
     </BrowserRouter>
   );
 }

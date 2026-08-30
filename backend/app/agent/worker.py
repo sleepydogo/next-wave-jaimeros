@@ -54,6 +54,23 @@ async def on_slowdown(p, msg=None):
                        source_event_id=(msg or {}).get("event_id"), event_type=events.TRUCK_SLOWDOWN)
 
 
+@bus.on(events.TRUCK_OFF_ROUTE)
+async def on_off_route(p, msg=None):
+    if not await _first_delivery(msg):
+        return
+    km = p["desvio_m"] / 1000
+    await bus.publish(events.ALERT_RAISED, {
+        "trip_id": p["trip_id"], "severity": "alta",
+        "title": f"Camion fuera de ruta ({km:.1f} km del corredor)",
+        "body": f"Se desvio de la ruta al puerto en {p['lat']:.4f},{p['lon']:.4f}. "
+                "Llamando al conductor.",
+    })
+    await caller.start(p, "emergency",
+                       detail=f"te desviaste de la ruta, estas a {km:.1f} kilometros del camino",
+                       source_event_id=(msg or {}).get("event_id"),
+                       event_type=events.TRUCK_OFF_ROUTE)
+
+
 @bus.on(events.CALL_FINISHED)
 async def on_call_finished(p, msg=None):
     """Cierra el ciclo: actualiza el viaje y escala si la voz da mal."""

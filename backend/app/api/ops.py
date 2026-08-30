@@ -3,9 +3,12 @@ import json
 import time
 import uuid
 
-from fastapi import APIRouter
+import os
 
-from .. import bus, costs, db, events
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
+
+from .. import bus, costs, db, events, state
 from ..config import DEMO_WORKER_PHONE
 from ..detector import rules
 from ..jobs import threshold_agent
@@ -19,6 +22,9 @@ def _json(rows, *fields):
     for r in rows:
         for f in fields:
             r[f] = json.loads(r[f]) if r.get(f) else {}
+        if "id" in r and "audio_path" in r:
+            # el front no ve el filesystem: le damos una url servible
+            r["audio_url"] = f"/ops/calls/{r['id']}/audio" if r["audio_path"] else None
     return rows
 
 
@@ -77,7 +83,7 @@ def calls():
     ```json
     {
       "id": "05c55846af35", "reason": "arrival_check", "status": "done",
-      "transcript": "AGENTE: Hola Carlos...\\nCONDUCTOR: Si, ya llegue...",
+      "transcript": "AGENTE: Hola Tomas...\\nCONDUCTOR: Si, ya llegue...",
       "outcome": {"available": true, "eta_min": 10, "problem": null,
                   "needs_human": false},
       "voice": {"stress": 0.2, "fatigue": 0.1, "risk": 0.2,
@@ -87,6 +93,21 @@ def calls():
     ```
     """
     return _json(db.q("SELECT * FROM calls ORDER BY ts DESC LIMIT 50"), "outcome", "voice")
+
+
+@router.get("/calls/{call_id}/audio", summary="Audio de la llamada")
+def call_audio(call_id: str):
+    """El wav de la llamada, con las dos voces mezcladas.
+
+    Lo graba el propio puente de audio mientras habla el agente con el
+    conductor, asi que existe tanto para las llamadas por telefono como para
+    las pruebas desde el navegador.
+    """
+    row = db.one("SELECT audio_path FROM calls WHERE id=?", (call_id,))
+    if not row or not row["audio_path"] or not os.path.exists(row["audio_path"]):
+        raise HTTPException(404, "esa llamada no tiene audio grabado")
+    return FileResponse(row["audio_path"], media_type="audio/wav",
+                        filename=f"llamada-{call_id}.wav")
 
 
 @router.get("/alerts", summary="Alertas")
@@ -221,7 +242,7 @@ def metrics():
 def seed():
     """Arma el escenario de demo y siembra los thresholds por defecto.
 
-    Crea el conductor `driver_01` (Carlos Gimenez) y un viaje nuevo en estado `en_ruta`
+    Crea el conductor `driver_01` (Tomas Schattmann) y un viaje nuevo en estado `en_ruta`
     hacia Puerto Buenos Aires Terminal 4 (-34.5745, -58.3660).
 
     Devuelve `{trip_id, driver_id, port}`. **Crea un viaje nuevo cada vez que se
@@ -232,21 +253,32 @@ def seed():
     rules.seed()
     did = "driver_01"
     db.x("INSERT OR REPLACE INTO drivers (id,name,phone) VALUES (?,?,?)",
-         (did, "Carlos Gimenez", DEMO_WORKER_PHONE))
+         (did, "Tomas Schattmann", DEMO_WORKER_PHONE))
+    # idempotente: si el conductor ya tiene un viaje abierto se reusa. Antes
+    # creaba uno nuevo en cada arranque y se acumulaban viajes fantasma.
+    abierto = db.one("SELECT id FROM trips WHERE driver_id=? AND status!='cerrado' "
+                     "ORDER BY created_at DESC LIMIT 1", (did,))
+    if abierto:
+        return {"trip_id": abierto["id"], "driver_id": did, "port": DEMO_PORT,
+                "reusado": True}
+
     tid = uuid.uuid4().hex[:8]
     db.x("INSERT INTO trips (id,driver_id,container,port_name,port_lat,port_lon,status,created_at) "
          "VALUES (?,?,?,?,?,?,?,?)",
          (tid, did, "MSCU-4471820", DEMO_PORT["name"], DEMO_PORT["lat"], DEMO_PORT["lon"],
           "en_ruta", time.time()))
-    return {"trip_id": tid, "driver_id": did, "port": DEMO_PORT}
+    return {"trip_id": tid, "driver_id": did, "port": DEMO_PORT, "reusado": False}
 
 
 @router.post("/reset", summary="Limpiar los datos de la demo")
-def reset():
+async def reset():
     """Vacia `pings`, `events`, `calls`, `alerts` y `trips`.
 
     No toca `drivers` ni `thresholds`.
     """
     for t in ("pings", "events", "calls", "alerts", "trips"):
         db.x(f"DELETE FROM {t}")
-    return {"ok": True}
+    # Redis tambien: la cola de pings sobrevive al reinicio y el detector la
+    # consumiria de golpe al arrancar, disparando llamadas viejas.
+    borradas = await state.limpiar()
+    return {"ok": True, "claves_redis_borradas": borradas}

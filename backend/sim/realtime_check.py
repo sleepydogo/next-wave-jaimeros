@@ -20,7 +20,7 @@ from app.agent import realtime
 from app.config import (OPENAI_API_KEY, OPENAI_REALTIME_MODEL, REALTIME_VOICE)
 
 SESSION = {"reason": "arrival_check",
-           "ctx": {"name": "Carlos Gimenez", "port": "Puerto Buenos Aires - Terminal 4",
+           "ctx": {"name": "Tomas Schattmann", "port": "Puerto Buenos Aires - Terminal 4",
                    "container": "MSCU-4471820", "detail": "estas detenido hace 7 minutos"}}
 
 

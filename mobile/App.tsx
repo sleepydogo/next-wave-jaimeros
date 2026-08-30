@@ -1,14 +1,34 @@
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import * as Location from "expo-location";
-import { driverApi, type DriverTrip } from "./api";
+import { API_URL, driverApi, type DriverTrip } from "./api";
+
+// Los mismos ids que expone GET /driver/triggers. Se dejan fijos para que la
+// pantalla no dependa de una request al abrir.
+const HITOS = [
+  { id: "llegada", titulo: "Llegué al puerto", emoji: "📍" },
+  { id: "desvio", titulo: "Me desvié de la ruta", emoji: "↩️" },
+  { id: "parada", titulo: "Estoy detenido", emoji: "🛑" },
+  { id: "frenada", titulo: "Bajé la velocidad", emoji: "🐢" },
+] as const;
 import { TripMap } from "./components/trip-map";
 import { TripDetailModal } from "./components/trip-detail-modal";
 
 type TripState = "en_ruta" | "en_puerto" | "resuelto";
 
 // Design System tokens (autonomous-logistics-design-system.md)
+const DRIVER_ID = "driver_01";
+
 const colors = {
   background: "#F5F5F5",   // --color-surface-muted
   surface:    "#FFFFFF",   // --color-white
@@ -23,18 +43,46 @@ const colors = {
 
 export default function App() {
   const [tripState, setTripState] = useState<TripState>("en_ruta");
-  const [trip] = useState<DriverTrip>({
+  // Arranca con un placeholder para que la pantalla no parpadee, pero se
+  // reemplaza por el viaje real apenas responde el backend: los botones mandan
+  // trip.id y con "demo-trip" el backend devolvia 404.
+  const [trip, setTrip] = useState<DriverTrip>({
     id: "demo-trip",
     container: "MSCU-4471820",
     port_name: "Puerto Buenos Aires - Terminal 4",
     status: "en_ruta",
-    driver_id: "d1",
+    driver_id: DRIVER_ID,
     port_lat: -34.5745,
     port_lon: -58.366,
   });
   const [error, setError] = useState<string | null>(null);
+  // el saludo usa el nombre real que devuelve el backend
+  const nombrePila = (trip.driver_name ?? "").split(" ")[0] || "conductor";
+
+  useEffect(() => {
+    let vivo = true;
+    const traer = async () => {
+      try {
+        const r = await driverApi.trip(DRIVER_ID);
+        if (vivo && r.trip) setTrip(r.trip);
+      } catch {
+        // sin backend seguimos con el placeholder; el header ya avisa
+      }
+    };
+    traer();
+    const id = setInterval(traer, 10000);
+    return () => {
+      vivo = false;
+      clearInterval(id);
+    };
+  }, []);
   const [apiConnected, setApiConnected] = useState(false);
   const [sending, setSending] = useState(false);
+  const [disparando, setDisparando] = useState<string | null>(null);
+  const [ultimoHito, setUltimoHito] = useState<string | null>(null);
+  // los disparadores manuales son para la demo, no para el conductor:
+  // por eso arrancan escondidos detras de "Debug"
+  const [debugAbierto, setDebugAbierto] = useState(false);
   const [location, setLocation] = useState<Location.LocationObject | null>(
     null,
   );
@@ -94,14 +142,17 @@ export default function App() {
   const isResolved = tripState === "resuelto";
 
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
-    >
+    <SafeAreaView style={styles.pantalla}>
+      <ScrollView
+        style={styles.scroll}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
       <View style={styles.header}>
         <View>
           <Text style={styles.eyebrow}>21AGENTS</Text>
-          <Text style={styles.greeting}>Buen viaje, Carlos</Text>
+          <Text style={styles.greeting}>Buen viaje, {nombrePila}</Text>
         </View>
         <Pressable
           accessibilityLabel="Abrir ajustes"
@@ -142,11 +193,7 @@ export default function App() {
           <TripMap
             destination={{ latitude: trip.port_lat, longitude: trip.port_lon }}
             currentLocation={location?.coords}
-            route={[
-              { latitude: -34.62, longitude: -58.48 },
-              { latitude: -34.6, longitude: -58.43 },
-              { latitude: trip.port_lat, longitude: trip.port_lon },
-            ]}
+            destinationLabel={trip.port_name}
             onMapPress={() => setAlertVisible(true)}
           />
         )}
@@ -182,6 +229,70 @@ export default function App() {
               ? "Te avisaremos cuando el puerto habilite tu turno."
               : "Mantén la app abierta. Actualizamos tu posición automáticamente."}
         </Text>
+      </View>
+
+      <View style={styles.hitos}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={debugAbierto ? "Cerrar debug" : "Abrir debug"}
+          onPress={() => setDebugAbierto((v) => !v)}
+          style={styles.debugHeader}
+        >
+          <View>
+            <Text style={styles.hitosTitulo}>Debug</Text>
+            {debugAbierto && (
+              <Text style={styles.hitosAyuda}>
+                Cada botón dispara una llamada del agente.
+              </Text>
+            )}
+          </View>
+          <Text style={styles.debugChevron}>{debugAbierto ? "▲" : "▼"}</Text>
+        </Pressable>
+
+        {debugAbierto &&
+          HITOS.map((h) => (
+          <Pressable
+            key={h.id}
+            accessibilityRole="button"
+            accessibilityLabel={h.titulo}
+            disabled={disparando !== null || !trip}
+            onPress={async () => {
+              if (!trip) return;
+              setDisparando(h.id);
+              setUltimoHito(null);
+              try {
+                const r = await driverApi.trigger(trip.id, h.id);
+                setUltimoHito(`${r.titulo} · el agente te está llamando`);
+                setError(null);
+              } catch (requestError) {
+                setError((requestError as Error).message);
+              } finally {
+                setDisparando(null);
+              }
+            }}
+            style={({ pressed }) => [
+              styles.hito,
+              pressed && styles.actionPressed,
+              disparando !== null && styles.hitoDeshabilitado,
+              disparando === h.id && styles.hitoActivo,
+            ]}
+          >
+            {disparando === h.id ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={styles.hitoEmoji}>{h.emoji}</Text>
+            )}
+            <Text
+              style={[
+                styles.hitoTexto,
+                disparando === h.id && styles.hitoTextoActivo,
+              ]}
+            >
+              {disparando === h.id ? "Avisando al agente..." : h.titulo}
+            </Text>
+          </Pressable>
+        ))}
+        {ultimoHito ? <Text style={styles.hitoOk}>{ultimoHito}</Text> : null}
       </View>
 
       <View style={styles.footer}>
@@ -220,9 +331,12 @@ export default function App() {
           </Text>
         )}
         <Text style={styles.tripId}>
-          VIAJE 21A-2048 ·{" "}
+          VIAJE {trip.id.toUpperCase()} ·{" "}
           {apiConnected ? "BACKEND CONECTADO" : "BACKEND SIN CONEXIÓN"}
         </Text>
+        {/* visible a proposito: si falla la conexion, lo primero que hay que
+            saber es contra que url esta pegando la app */}
+        <Text style={styles.apiUrl}>{API_URL}</Text>
         {error && <Text style={styles.error}>{error}</Text>}
       </View>
 
@@ -238,15 +352,39 @@ export default function App() {
           updatedAt: "ahora",
         }}
       />
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
+const sombra = {
+  shadowColor: "#231F20",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.06,
+  shadowRadius: 10,
+  elevation: 2,
+};
+
 const styles = StyleSheet.create({
-  content: {
+  // El color va en la pantalla, no en el contenido: si esta solo en el
+  // contentContainer, se corta donde termina el contenido.
+  pantalla: {
     flex: 1,
     backgroundColor: colors.background,
+    // en Android SafeAreaView no cubre la barra de estado
+    paddingTop: Platform.OS === "android" ? 28 : 0,
+  },
+  scroll: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  content: {
+    // flexGrow, NO flex: con flex:1 el contenido queda clavado a la altura de
+    // la pantalla y el ScrollView deja de scrollear
+    flexGrow: 1,
     padding: 24,
+    // aire abajo para que el ultimo boton no quede pegado al borde
+    paddingBottom: 48,
     gap: 28,
   },
   header: {
@@ -286,10 +424,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderCurve: "continuous",
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     gap: 14,
     padding: 20,
+    ...sombra,
   },
   tripTopline: {
     alignItems: "center",
@@ -341,13 +480,6 @@ const styles = StyleSheet.create({
   containerNumber: {
     color: colors.muted,
     fontSize: 13,
-  },
-  map: {
-    borderRadius: 12,
-    height: 180,
-    marginTop: 4,
-    overflow: "hidden",
-    width: "100%",
   },
   route: {
     gap: 0,
@@ -407,8 +539,7 @@ const styles = StyleSheet.create({
   footer: {
     alignItems: "center",
     gap: 16,
-    marginTop: "auto",
-    paddingBottom: 8,
+    paddingTop: 8,
   },
   action: {
     alignItems: "center",
@@ -419,6 +550,75 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 24,
     width: "100%",
+  },
+  hitos: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 9,
+    padding: 18,
+    ...sombra,
+  },
+  debugHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  debugChevron: {
+    color: colors.muted,
+    fontSize: 12,
+  },
+  hitosTitulo: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  hitosAyuda: {
+    color: colors.muted,
+    fontSize: 12.5,
+    marginBottom: 4,
+  },
+  hito: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 15,
+    paddingHorizontal: 16,
+  },
+  hitoDeshabilitado: {
+    opacity: 0.45,
+  },
+  // el que se toco se mantiene legible y marcado mientras espera
+  hitoActivo: {
+    opacity: 1,
+    backgroundColor: colors.primary100,
+    borderColor: colors.primary,
+  },
+  hitoEmoji: {
+    fontSize: 17,
+  },
+  hitoTextoActivo: {
+    color: colors.primary,
+    fontWeight: "600",
+  },
+  hitoTexto: {
+    color: colors.ink,
+    fontSize: 14.5,
+    fontWeight: "500",
+  },
+  hitoOk: {
+    color: colors.primary,
+    backgroundColor: colors.primary100,
+    borderRadius: 10,
+    fontSize: 12.5,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
   },
   actionPressed: {
     opacity: 0.82,
@@ -440,6 +640,12 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.65,
+  },
+  apiUrl: {
+    color: colors.muted,
+    fontSize: 10,
+    marginTop: 2,
+    textAlign: "center",
   },
   error: {
     color: "#C22E2E",

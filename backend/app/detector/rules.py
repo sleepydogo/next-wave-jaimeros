@@ -10,6 +10,7 @@ DEFAULTS = {
     "stop_min_seconds": 120.0,     # cuanto tiempo detenido para alertar
     "slowdown_drop_pct": 0.6,      # caida de velocidad >60% = frenada anormal
     "slowdown_min_kmh": 40.0,      # solo si venia rapido
+    "corridor_m": 3000.0,          # cuanto se puede alejar de la recta al puerto
 }
 
 
@@ -70,3 +71,39 @@ def slowdown(window):
         return False, 0
     drop = (prev - now) / prev if prev else 0
     return drop >= th("slowdown_drop_pct"), drop
+
+
+def off_route(ping, trip, origen):
+    """Distancia del camion al corredor que va del origen al puerto.
+
+    No tenemos la ruta real del viaje, asi que usamos la recta entre donde
+    arranco y el puerto, con un ancho tolerante. Alcanza para distinguir "esta
+    dando una vuelta por la ciudad" de "se fue para otro lado".
+
+    `origen` es el primer ping del viaje; sin el no se puede evaluar.
+    """
+    if not origen:
+        return False, 0.0
+    d = _dist_a_segmento(ping["lat"], ping["lon"], origen["lat"], origen["lon"],
+                         trip["port_lat"], trip["port_lon"])
+    return d > th("corridor_m"), d
+
+
+def _dist_a_segmento(plat, plon, alat, alon, blat, blon):
+    """Distancia de un punto al segmento A-B, en metros.
+
+    A esta escala la Tierra es plana sin que se note: proyectamos a metros y
+    resolvemos en el plano.
+    """
+    mlat = math.radians((alat + blat) / 2)
+    kx = 111320 * math.cos(mlat)   # metros por grado de longitud
+    ky = 110540                    # metros por grado de latitud
+    ax, ay = 0.0, 0.0
+    bx, by = (blon - alon) * kx, (blat - alat) * ky
+    px, py = (plon - alon) * kx, (plat - alat) * ky
+    largo2 = bx * bx + by * by
+    if largo2 == 0:
+        return math.hypot(px, py)
+    # t = donde cae la proyeccion del punto sobre el segmento, recortado a [0,1]
+    t = max(0.0, min(1.0, (px * bx + py * by) / largo2))
+    return math.hypot(px - t * bx, py - t * by)

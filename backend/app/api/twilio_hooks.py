@@ -11,6 +11,7 @@ from fastapi import APIRouter, Form, HTTPException, Request, WebSocket
 from fastapi.responses import Response
 from twilio.request_validator import RequestValidator
 
+from .. import db
 from ..agent import caller, realtime
 from ..config import (PUBLIC_URL, TWILIO_AUTH_TOKEN,
                       VALIDATE_TWILIO_SIGNATURE, VOICE_MODE)
@@ -137,7 +138,10 @@ async def stream(websocket: WebSocket, call_id: str):
     if not s:
         await websocket.close()
         return
-    transcript = await realtime.bridge(websocket, s)
+    transcript, audio = await realtime.bridge(websocket, s, call_id)
     if transcript:
         s["history"] = [{"role": "assistant", "content": "\n".join(transcript)}]
         await caller.save_session(call_id, s)
+        db.x("UPDATE calls SET transcript=? WHERE id=?", ("\n".join(transcript), call_id))
+    if audio:
+        db.x("UPDATE calls SET audio_path=? WHERE id=?", (audio, call_id))

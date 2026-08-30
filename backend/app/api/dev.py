@@ -13,7 +13,7 @@ from ..config import (AGENT_NAME, INTERRUPT_AFTER_S, OPENAI_REALTIME_MODEL,
 router = APIRouter(prefix="/dev", tags=["dev"])
 
 SESSION = {"reason": "arrival_check",
-           "ctx": {"name": "Carlos Gimenez", "port": "Puerto Buenos Aires - Terminal 4",
+           "ctx": {"name": "Tomas Schattmann", "port": "Puerto Buenos Aires - Terminal 4",
                    "container": "MSCU-4471820", "detail": "estas detenido hace 7 minutos"}}
 
 PAGINA = """<!doctype html><meta charset=utf-8><title>Probar la voz</title>
@@ -87,6 +87,7 @@ async function arrancar() {
     else if (m.type === 'dijo' && m.texto) escribir(m.quien, ' ' + m.texto);
     else if (m.type === 'error') escribir('ERROR', ' ' + m.text, 'err');
     else if (m.type === 'info') escribir('', m.text, 'voz');
+    else if (m.type === 'estado') escribir('', '· ' + m.texto, 'voz');
     else if (m.type === 'ambiente') estado.textContent =
         'ambiente: piso ' + m.piso + ' · umbral ' + m.umbral +
         (m.voz_pct !== undefined ? ' · ultimo tramo ' + m.voz_pct + '% voz' : '');

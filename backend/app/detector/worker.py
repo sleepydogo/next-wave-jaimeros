@@ -57,7 +57,16 @@ async def process_ping(trip_id, ping):
                 "detail": "parada no planificada", "seconds": round(span)}))
             return
 
-        # 3) caida abrupta de velocidad
+        # 3) se salio del corredor hacia el puerto
+        origen = db.one("SELECT lat,lon FROM pings WHERE trip_id=? ORDER BY ts ASC LIMIT 1",
+                        (trip_id,))
+        fuera, desvio = rules.off_route(ping, trip, origen)
+        if fuera and await state.once(f"offroute:{trip_id}", ttl=900):
+            await bus.publish(events.TRUCK_OFF_ROUTE, await _event_payload(trip, ping, {
+                "detail": "se desvio de la ruta al puerto", "desvio_m": round(desvio)}))
+            return
+
+        # 4) caida abrupta de velocidad
         is_slow, drop = rules.slowdown(window)
         if is_slow and await state.once(f"slowdown:{trip_id}", ttl=600):
             await bus.publish(events.TRUCK_SLOWDOWN, await _event_payload(trip, ping, {

@@ -41,6 +41,12 @@ fi
 # ── Llamadas reales: chequear config antes de gastar plata ───────────────────
 
 PROFILE=""
+# ngrok arriba siempre que este configurado: es la url que usa el telefono
+[[ -f .env ]] && set -a && . ./.env && set +a
+if [[ -n "${NGROK_AUTHTOKEN:-}" && -n "${NGROK_DOMAIN:-}" ]]; then
+  PROFILE="--profile voice"
+fi
+
 if [[ $CALLS -eq 1 ]]; then
   [[ -f .env ]] && set -a && . ./.env && set +a
   FALTAN=""
@@ -93,16 +99,9 @@ echo "==> cargando datos de demo"
 SEED=$(curl -fs -X POST http://localhost:8000/ops/seed)
 TRIP=$(echo "$SEED" | python3 -c "import sys,json;print(json.load(sys.stdin)['trip_id'])")
 
-# Un par de posiciones para que el dashboard no arranque vacio.
-# OJO: las dos quedan FUERA del geofence del puerto (-34.5745,-58.366, radio
-# 800 m) a proposito. Si un ping entra, el detector dispara truck.arrived y el
-# agente llama al conductor: con SIMULATE_CALLS=0 eso es una llamada real y
-# paga, en cada arranque. Para provocar la llegada esta el simulador.
-curl -fs -X POST http://localhost:8000/driver/ping -H 'Content-Type: application/json' \
-  -d "{\"trip_id\":\"$TRIP\",\"lat\":-34.60,\"lon\":-58.366,\"speed\":62}" > /dev/null
-sleep 1
-curl -fs -X POST http://localhost:8000/driver/ping -H 'Content-Type: application/json' \
-  -d "{\"trip_id\":\"$TRIP\",\"lat\":-34.59,\"lon\":-58.366,\"speed\":58}" > /dev/null
+# No mandamos pings de arranque: cualquier posicion puede disparar una
+# deteccion (llegada, desvio) y con eso una llamada real. Las posiciones
+# las manda la app del conductor, o el simulador cuando se lo pide.
 
 # ── Web (Vite) ────────────────────────────────────────────────────────────────
 
@@ -114,6 +113,22 @@ echo "==> arrancando web en http://localhost:5173"
 WEB_PID=$!
 
 # ── Mobile (Expo) ─────────────────────────────────────────────────────────────
+
+# El telefono no puede resolver "localhost": eso apunta al propio celular.
+# Le pasamos la IP de esta maquina en la red local.
+# Preferimos ngrok: funciona con el telefono en cualquier red, no solo en la
+# misma WiFi. La IP local queda de respaldo.
+if [[ -n "${NGROK_DOMAIN:-}" ]]; then
+  export EXPO_PUBLIC_API_URL="https://$NGROK_DOMAIN"
+else
+  IP_LAN="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"
+  if [[ -z "$IP_LAN" ]]; then
+    echo "⚠️   sin ngrok ni IP local: la app movil no va a poder conectarse."
+  else
+    export EXPO_PUBLIC_API_URL="http://$IP_LAN:8000"
+  fi
+fi
+echo "==> la app movil va a usar ${EXPO_PUBLIC_API_URL:-nada}"
 
 echo "==> instalando dependencias de mobile..."
 (cd "$ROOT/mobile" && npm install --silent)
@@ -145,6 +160,7 @@ cat <<EOF
   Swagger .......... http://localhost:8000/docs
   Web .............. http://localhost:5173
   Mobile ........... Expo (escanea el QR de arriba con Expo Go)
+  API para el movil  ${EXPO_PUBLIC_API_URL:-no detectada}
   RabbitMQ ......... http://localhost:15672   (guest / guest)$(
     [[ $CALLS -eq 1 ]] && printf '\n  ngrok ............ %s (inspector en http://localhost:4040)' "$PUBLIC_URL")
 

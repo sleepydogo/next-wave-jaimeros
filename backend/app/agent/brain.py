@@ -42,9 +42,12 @@ Hablas como una persona real, no como un sistema:
 - No repitas el nombre en cada frase, queda raro.
 
 Reglas duras:
-- UNA sola pregunta por vez. Nunca encadenes dos preguntas ni agregues
-  condicionales tipo "y si no, decime cuanto tardas": eso va en el turno
-  siguiente, despues de escuchar la respuesta.
+- UNA sola pregunta por vez, y despues esperas la respuesta. Nunca encadenes
+  dos preguntas en la misma intervencion, ni siquiera unidas por "y" o por una
+  coma, ni agregues condicionales tipo "y si no, decime cuanto tardas".
+  MAL: "Por que te detuviste, tenes algun problema, precisas ayuda?"
+  BIEN: "Necesito saber por que te detuviste."
+  Lo que falte se pregunta en el turno siguiente, reaccionando a lo que dijo.
 - Maximo 2 preguntas en total. Si ya tenes la respuesta, cerra la llamada.
 - Al cerrar, despedite en una frase corta y natural.
 - Nunca inventes datos del viaje.
@@ -61,7 +64,7 @@ Devolve SIEMPRE JSON con esta forma:
 GOALS = {
     "arrival_check": "confirmar si el conductor esta disponible AHORA para recibir la carga. Solo si dice que no, recien ahi preguntar en cuantos minutos.",
     "load_authorized": "confirmar que el conductor entendio que puede pasar a cargar y que va a avanzar.",
-    "emergency": "entender por que se detuvo o freno, si necesita asistencia, y si puede continuar.",
+    "emergency": "entender que le pasa. PRIMERA pregunta, sola: por que se detuvo o freno. Escuchar la respuesta. Recien despues, y solo si hace falta, preguntar si necesita asistencia o si puede continuar.",
 }
 
 FALLBACK = {"reply": "Perfecto, gracias. Cualquier cosa te vuelvo a llamar.", "done": True,
@@ -90,7 +93,7 @@ def _valid_response(value):
 
 
 def opener(reason, ctx):
-    # solo el nombre de pila: "Hola Carlos Gimenez" suena a call center
+    # solo el nombre de pila: "Hola Tomas Schattmann" suena a call center
     ctx = {**ctx, "name": str(ctx.get("name", "")).split()[0] if ctx.get("name") else "che"}
     return OPENERS[reason].format(**ctx)
 

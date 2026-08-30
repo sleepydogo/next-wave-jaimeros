@@ -16,7 +16,7 @@ import sys
 
 from app.agent import brain
 
-CTX = {"name": "Carlos Gimenez", "phone": "+5492920577046",
+CTX = {"name": "Tomas Schattmann", "phone": "+5492920577046",
        "port": "Puerto Buenos Aires - Terminal 4", "container": "MSCU-4471820",
        "detail": "estas detenido hace 7 minutos", "trip_id": "demo"}
 

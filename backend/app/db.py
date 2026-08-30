@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS calls (
     voice TEXT,             -- json: metricas de voz
     duration_s REAL,
     cost_usd REAL,
+    audio_path TEXT,        -- wav de la llamada, servido por /ops/calls/{id}/audio
     ts REAL
 );
 CREATE TABLE IF NOT EXISTS thresholds (
@@ -68,6 +69,8 @@ def init():
         columns = {row[1] for row in c.execute("PRAGMA table_info(calls)")}
         if "twilio_sid" not in columns:
             c.execute("ALTER TABLE calls ADD COLUMN twilio_sid TEXT")
+        if "audio_path" not in columns:
+            c.execute("ALTER TABLE calls ADD COLUMN audio_path TEXT")
 
 
 def q(sql, args=()):

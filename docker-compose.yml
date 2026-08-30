@@ -47,6 +47,7 @@ services:
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8000}
       VALIDATE_TWILIO_SIGNATURE: ${VALIDATE_TWILIO_SIGNATURE:-1}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       VOICE_MODE: ${VOICE_MODE:-gather}
       OPENAI_REALTIME_MODEL: ${OPENAI_REALTIME_MODEL:-gpt-realtime-2.1}
@@ -67,7 +68,11 @@ services:
       - ./backend/app:/srv/app   # editar codigo local se refleja adentro
       - ./backend/sim:/srv/sim
       - nextwave-data:/data      # la SQLite sobrevive a docker compose down
+    # timeout-graceful-shutdown: sin esto, un websocket abierto (la pagina
+    # /dev/voz) deja el reload colgado en "waiting for background tasks" y el
+    # backend queda sin responder
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      --timeout-graceful-shutdown 5
     depends_on:
       redis:
         condition: service_healthy

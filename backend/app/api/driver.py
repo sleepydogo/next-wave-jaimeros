@@ -1,10 +1,11 @@
 """Endpoints que consume la app movil del conductor."""
 import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from .. import db, state
+from .. import bus, db, events, state
+from ..detector import worker as detector
 
 router = APIRouter(prefix="/driver", tags=["driver"])
 
@@ -30,7 +31,9 @@ def current_trip(driver_id: str):
     valida el payload y descarta lo que no matchee.
     """
     trip = db.one(
-        "SELECT * FROM trips WHERE driver_id=? AND status!='cerrado' ORDER BY created_at DESC LIMIT 1",
+        "SELECT t.*, d.name AS driver_name, d.phone AS driver_phone FROM trips t "
+        "JOIN drivers d ON d.id=t.driver_id "
+        "WHERE t.driver_id=? AND t.status!='cerrado' ORDER BY t.created_at DESC LIMIT 1",
         (driver_id,))
     if not trip:
         return {"trip": None}
@@ -78,3 +81,57 @@ def ack(trip_id: str):
     """
     db.x("UPDATE trips SET status='esperando_puerto' WHERE id=?", (trip_id,))
     return {"ok": True}
+
+
+# Los cuatro hitos que disparan una llamada. La app movil los muestra como
+# botones para manejar la demo sin depender de que el GPS caiga justo.
+DISPARADORES = {
+    "llegada": (events.TRUCK_ARRIVED, "llego al puerto",
+                lambda t: {"detail": "ingreso al geofence", "port_name": t["port_name"],
+                           "distance_m": 0}),
+    "desvio": (events.TRUCK_OFF_ROUTE, "se desvio de la ruta",
+               lambda t: {"detail": "se desvio de la ruta al puerto", "desvio_m": 5200}),
+    "parada": (events.TRUCK_STOPPED, "se detuvo en ruta",
+               lambda t: {"detail": "parada no planificada", "seconds": 420}),
+    "frenada": (events.TRUCK_SLOWDOWN, "bajo la velocidad de golpe",
+                lambda t: {"detail": "caida abrupta de velocidad", "drop_pct": 78,
+                           "previous_speed": 82.0, "current_speed": 18.0}),
+}
+
+
+@router.get("/triggers", summary="Hitos que la app puede disparar")
+def triggers():
+    """Los cuatro disparadores de llamada, para que la app arme los botones."""
+    return [{"id": k, "titulo": v[1]} for k, v in DISPARADORES.items()]
+
+
+@router.post("/{trip_id}/trigger/{hito}", summary="Disparar un hito a mano")
+async def trigger(trip_id: str, hito: str):
+    """Publica el evento como si lo hubiera detectado el GPS.
+
+    Existe para la demo: deja provocar cada uno de los cuatro hitos desde la
+    app, sin tener que esperar a que la posicion real caiga en el lugar justo.
+    El payload que sale es identico al que arma el detector, asi que el agente
+    no distingue si vino de aca o de un ping.
+    """
+    if hito not in DISPARADORES:
+        raise HTTPException(400, f"hito desconocido: {hito}")
+    trip = db.one("SELECT * FROM trips WHERE id=?", (trip_id,))
+    if not trip:
+        raise HTTPException(404, "no existe ese viaje")
+
+    tipo, titulo, extra = DISPARADORES[hito]
+    last = db.one("SELECT lat,lon,speed,ts FROM pings WHERE trip_id=? ORDER BY ts DESC LIMIT 1",
+                  (trip_id,))
+    # la llegada tiene que ser en el puerto; el resto, donde este el camion
+    ping = ({"lat": trip["port_lat"], "lon": trip["port_lon"], "speed": 0, "ts": time.time()}
+            if tipo == events.TRUCK_ARRIVED else
+            {"lat": last["lat"] if last else trip["port_lat"],
+             "lon": last["lon"] if last else trip["port_lon"],
+             "speed": 0, "ts": time.time()})
+
+    if tipo == events.TRUCK_ARRIVED:
+        db.x("UPDATE trips SET status='en_puerto' WHERE id=?", (trip_id,))
+    payload = await detector._event_payload(trip, ping, extra(trip))
+    event_id = await bus.publish(tipo, payload)
+    return {"ok": True, "hito": hito, "titulo": titulo, "evento": tipo, "event_id": event_id}

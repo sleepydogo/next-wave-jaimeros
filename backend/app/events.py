@@ -9,17 +9,19 @@ SCHEMA_VERSION = 1
 TRUCK_ARRIVED = "truck.arrived"          # el camion entro al geofence del puerto
 TRUCK_STOPPED = "truck.stopped"          # parada no planificada en ruta
 TRUCK_SLOWDOWN = "truck.slowdown"        # caida abrupta de velocidad
+TRUCK_OFF_ROUTE = "truck.off_route"      # se salio del corredor hacia el puerto
 TRUCK_HARSH = "truck.harsh_event"        # frenada / aceleracion brusca
 PORT_READY = "port.ready"                # el puerto habilito la carga
 CALL_FINISHED = "call.finished"          # el agente termino una llamada
 ALERT_RAISED = "alert.raised"            # emergencia -> dispatcher
 
 ALL = [
-    TRUCK_ARRIVED, TRUCK_STOPPED, TRUCK_SLOWDOWN, TRUCK_HARSH,
+    TRUCK_ARRIVED, TRUCK_STOPPED, TRUCK_SLOWDOWN, TRUCK_OFF_ROUTE, TRUCK_HARSH,
     PORT_READY, CALL_FINISHED, ALERT_RAISED,
 ]
 
-TRIGGER_EVENTS = [TRUCK_ARRIVED, PORT_READY, TRUCK_STOPPED, TRUCK_SLOWDOWN]
+TRIGGER_EVENTS = [TRUCK_ARRIVED, PORT_READY, TRUCK_STOPPED, TRUCK_SLOWDOWN,
+                  TRUCK_OFF_ROUTE]
 
 
 def new_id(prefix="evt"):
@@ -46,3 +48,5 @@ def validate_trigger(event_type, payload):
         raise ValueError("falta seconds")
     if event_type == TRUCK_SLOWDOWN and "drop_pct" not in payload:
         raise ValueError("falta drop_pct")
+    if event_type == TRUCK_OFF_ROUTE and "desvio_m" not in payload:
+        raise ValueError("falta desvio_m")

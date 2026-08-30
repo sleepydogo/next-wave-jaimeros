@@ -56,3 +56,18 @@ async def once(key, ttl=600):
 
 async def clear_trip(trip_id):
     await r.delete(f"last:{trip_id}", f"win:{trip_id}")
+
+
+async def limpiar():
+    """Borra la cola de pings, las ventanas y los locks. Devuelve cuantas claves.
+
+    Se usa en /ops/reset: sin esto quedan pings encolados y locks `once` de la
+    corrida anterior, y el detector los procesa al arrancar como si fueran
+    nuevos.
+    """
+    borradas = await r.delete(PING_QUEUE)
+    for patron in ("once:*", "win:*", "last:*", "call:*", "geo:*"):
+        claves = [k async for k in r.scan_iter(match=patron, count=500)]
+        if claves:
+            borradas += await r.delete(*claves)
+    return borradas

@@ -16,6 +16,10 @@ export interface CallLog {
   ubicacion?: string;
   position?: { lat: number; lng: number };
   transcript: { speaker: string; text: string }[];
+  audioUrl?: string;
+  costo?: number;
+  riesgoVoz?: number;
+  ts?: number;
 }
 export interface TripEvent {
   hora: string;
@@ -58,6 +62,8 @@ export interface Alert {
   hora: string;
   hace?: string;
   estado?: "pendiente" | "en_gestion" | "resuelta";
+  canales?: string;
+  ts?: number;
 }
 export interface Call {
   id: string;

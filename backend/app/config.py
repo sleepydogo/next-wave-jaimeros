@@ -8,6 +8,8 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 RABBITMQ_URL = os.getenv("RABBITMQ_URL") or None
 # absoluto a proposito: si no, cambia de archivo segun desde donde arranques
 DB_PATH = os.path.abspath(os.path.join(ROOT, os.getenv("DB_PATH", "nextwave.db")))
+# donde quedan los wav de las llamadas; junto a la base para que sobreviva igual
+AUDIO_DIR = os.getenv("AUDIO_DIR", os.path.join(os.path.dirname(DB_PATH), "audio"))
 PUBLIC_URL = os.getenv("PUBLIC_URL", "http://localhost:8000")
 
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")

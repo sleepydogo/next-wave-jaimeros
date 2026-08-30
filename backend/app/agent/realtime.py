@@ -11,13 +11,16 @@ import asyncio
 import base64
 import json
 import logging
+import time
+import uuid
 
 import websockets
 
+from .. import db
 from ..config import (AGENT_NAME, OPENAI_API_KEY, OPENAI_REALTIME_MODEL,
                       INTERRUPT_AFTER_S, REALTIME_EAGERNESS,
                       REALTIME_SPEED, REALTIME_VOICE)
-from . import voice_signals
+from . import grabacion, voice_signals
 
 log = logging.getLogger("realtime")
 
@@ -58,8 +61,14 @@ Como hablas:
 - No leas direcciones completas, codigos postales ni el contenedor letra por
   letra. Decilo natural: "en Corrientes al mil".
 - Nunca digas que sos una inteligencia artificial, un bot ni un asistente.
-- UNA sola pregunta por turno, y despues te callas. Nunca encadenes dos
-  preguntas en la misma intervencion.
+- UNA sola pregunta por turno, y despues te callas y esperas la respuesta.
+  Nunca encadenes dos preguntas en la misma intervencion, ni siquiera separadas
+  por "y" o por una coma.
+  MAL: "Necesito saber por que te detuviste, si tenes algun problema, si
+       precisas asistencia."
+  BIEN: "Necesito saber por que te detuviste."  (y te callas)
+  Despues de escuchar lo que te contesta, reaccionas a ESO y recien ahi, si
+  todavia falta algo, haces la segunda pregunta.
 - Nunca agregues condicionales del tipo "y si no, decime cuanto tardas" o
   "avisame si necesitas algo": eso va en el turno siguiente, si hace falta.
   Preguntas cerradas primero; el detalle se pide despues de escuchar la respuesta.
@@ -94,7 +103,7 @@ OBJETIVOS = {
     "arrival_check": "saber si ya esta disponible para recibir la carga. Solo si te dice"
                      " que NO, recien ahi preguntale en cuantos minutos calcula estar listo.",
     "load_authorized": "avisarle que el puerto habilito la carga y que puede pasar a cargar.",
-    "emergency": "entender por que se detuvo o freno, si necesita ayuda, y si puede seguir.",
+    "emergency": "entender que le pasa. PRIMERA pregunta, sola: por que se detuvo o freno. Escucha la respuesta completa. Recien despues, y solo si hace falta, pregunta si necesita ayuda o si puede seguir.",
 }
 
 
@@ -139,7 +148,7 @@ def _session_update(session, fmt="audio/pcmu", rate=None):
     }}
 
 
-async def bridge(twilio_ws, session):
+async def bridge(twilio_ws, session, call_id="sin-id"):
     """Conecta los dos WebSockets hasta que se corte la llamada.
 
     Devuelve el transcript de la conversacion para armar el reporte.
@@ -155,9 +164,14 @@ async def bridge(twilio_ws, session):
     hablando = False
     bostezos = []
     # solo se puede cancelar una respuesta que este en curso
-    respondiendo = {"v": False}
+    # guardamos el ID de la respuesta en curso, no un booleano: hay que poder
+    # distinguir la respuesta que venia de antes (esa si se corta) de la que
+    # OpenAI acaba de crear para contestarle (esa NO se toca, o el agente
+    # queda mudo)
+    activa = {"id": None, "al_empezar": None}
     piso = voice_signals.PisoDeRuido()
     prop = {"v": 1.0}
+    grab = grabacion.Grabador(8000)
     prop = {"v": 1.0}
 
     async with websockets.connect(
@@ -188,7 +202,9 @@ async def bridge(twilio_ws, session):
                     # el piso se sigue calibrando con cada frame, pero NO se usa
                     # para filtrar el buffer: un bostezo es suave y sostenido, y
                     # el gate se lo comia
-                    piso.es_voz(voice_signals.ulaw_a_pcm16(crudo))
+                    pcm = voice_signals.ulaw_a_pcm16(crudo)
+                    piso.es_voz(pcm)
+                    grab.del_conductor(pcm)
                     if hablando:
                         buffer_voz.extend(crudo)
                 elif msg["event"] == "stop":
@@ -212,8 +228,8 @@ async def bridge(twilio_ws, session):
                 await asyncio.sleep(INTERRUPT_AFTER_S)
             except asyncio.CancelledError:
                 return
-            if not respondiendo["v"]:
-                return  # el agente ya habia terminado, no hay nada que cortar
+            if not activa["id"] or activa["id"] != activa["al_empezar"]:
+                return  # ya termino, o esta es la respuesta que le contesta
             log.info("el conductor sostuvo la voz %ss, corto al agente", INTERRUPT_AFTER_S)
             if stream_sid:
                 await twilio_ws.send_json({"event": "clear", "streamSid": stream_sid})
@@ -234,12 +250,13 @@ async def bridge(twilio_ws, session):
                 tipo = ev.get("type", "")
 
                 if tipo == "response.created":
-                    respondiendo["v"] = True
+                    activa["id"] = (ev.get("response") or {}).get("id")
                 elif tipo == "response.done":
-                    respondiendo["v"] = False
+                    activa["id"] = None
 
                 # audio del agente -> Twilio (los dos nombres segun version de la API)
                 if tipo in ("response.output_audio.delta", "response.audio.delta"):
+                    grab.del_agente(voice_signals.ulaw_a_pcm16(base64.b64decode(ev["delta"])))
                     if stream_sid:
                         await twilio_ws.send_json({
                             "event": "media", "streamSid": stream_sid,
@@ -250,6 +267,7 @@ async def bridge(twilio_ws, session):
                 # y el agente le habla encima.
                 elif tipo == "input_audio_buffer.speech_started":
                     nonlocal_hablando(True)
+                    activa["al_empezar"] = activa["id"]
                     # no cortamos al agente todavia: puede ser un "aja" o un
                     # ruido. Arrancamos un reloj y cortamos solo si sigue
                     # hablando cuando se cumpla.
@@ -261,7 +279,7 @@ async def bridge(twilio_ws, session):
                     cancelar_reloj()  # hablo poco: el agente sigue tranquilo
                     # el conductor termino su frase: si el agente todavia habla
                     # hay que cortarlo, si no OpenAI no puede crear la respuesta
-                    if respondiendo["v"]:
+                    if activa["id"] and activa["id"] == activa["al_empezar"]:
                         await oai.send(json.dumps({"type": "response.cancel"}))
                     tramo = bytes(buffer_voz)
                     buffer_voz.clear()
@@ -297,7 +315,7 @@ async def bridge(twilio_ws, session):
 
     if bostezos:
         log.info("la llamada tuvo %s bostezo(s)", len(bostezos))
-    return transcript
+    return transcript, grab.guardar(call_id)
 
 
 def base64_len(payload):
@@ -318,9 +336,14 @@ async def bridge_browser(ws, session):
     buf = bytearray()
     hablando = {"v": False}
     relojes = []
-    respondiendo = {"v": False}
+    # guardamos el ID de la respuesta en curso, no un booleano: hay que poder
+    # distinguir la respuesta que venia de antes (esa si se corta) de la que
+    # OpenAI acaba de crear para contestarle (esa NO se toca, o el agente
+    # queda mudo)
+    activa = {"id": None, "al_empezar": None}
     piso = voice_signals.PisoDeRuido()
     prop = {"v": 1.0}
+    grab = grabacion.Grabador(8000)
 
     async with websockets.connect(
         URL.format(OPENAI_REALTIME_MODEL),
@@ -335,8 +358,9 @@ async def bridge_browser(ws, session):
                 await asyncio.sleep(INTERRUPT_AFTER_S)
             except asyncio.CancelledError:
                 return
-            if not respondiendo["v"]:
-                return  # el agente ya habia terminado, no hay nada que cortar
+            # solo se corta lo que ya venia sonando cuando empezo a hablar
+            if not activa["id"] or activa["id"] != activa["al_empezar"]:
+                return
             log.info("sostuvo la voz %ss, corto al agente", INTERRUPT_AFTER_S)
             await ws.send_json({"type": "clear"})
             await ws.send_json({"type": "info", "text":
@@ -351,6 +375,7 @@ async def bridge_browser(ws, session):
                     await oai.send(json.dumps({"type": "input_audio_buffer.append",
                                                "audio": msg["audio"]}))
                     piso.es_voz(crudo)   # calibra el ambiente, no filtra
+                    grab.del_conductor(crudo)
                     if hablando["v"]:
                         buf.extend(crudo)
 
@@ -359,14 +384,21 @@ async def bridge_browser(ws, session):
                 ev = json.loads(raw)
                 t = ev.get("type", "")
                 if t == "response.created":
-                    respondiendo["v"] = True
+                    activa["id"] = (ev.get("response") or {}).get("id")
+                    await ws.send_json({"type": "estado", "texto": "el agente empieza a hablar"})
                 elif t == "response.done":
-                    respondiendo["v"] = False
+                    activa["id"] = None
+                    await ws.send_json({"type": "estado", "texto": "el agente termino de hablar"})
 
                 if t in ("response.output_audio.delta", "response.audio.delta"):
+                    grab.del_agente(base64.b64decode(ev["delta"]))
                     await ws.send_json({"type": "audio", "audio": ev["delta"]})
                 elif t == "input_audio_buffer.speech_started":
                     hablando["v"] = True
+                    activa["al_empezar"] = activa["id"]
+                    await ws.send_json({"type": "estado", "texto":
+                                        "te escucho" + (" (el agente esta hablando)"
+                                                        if activa["id"] else "")})
                     buf.clear()
                     for r in relojes:
                         r.cancel()
@@ -381,7 +413,9 @@ async def bridge_browser(ws, session):
                     for r in relojes:
                         r.cancel()
                     relojes.clear()
-                    if respondiendo["v"]:
+                    # si el agente TODAVIA esta con la respuesta vieja, hay que
+                    # cortarla para que OpenAI pueda crear la que te contesta
+                    if activa["id"] and activa["id"] == activa["al_empezar"]:
                         await oai.send(json.dumps({"type": "response.cancel"}))
                     if len(buf) > 48000:  # 1 segundo de pcm16 a 24kHz
                         try:
@@ -395,6 +429,7 @@ async def bridge_browser(ws, session):
                     buf.clear()
                 elif t in ("response.output_audio_transcript.done",
                            "response.audio_transcript.done"):
+                    dicho.append(f"AGENTE: {ev.get('transcript', '')}")
                     await ws.send_json({"type": "dijo", "quien": "AGENTE",
                                         "texto": ev.get("transcript", "")})
                 elif t == "conversation.item.input_audio_transcription.completed":
@@ -418,3 +453,14 @@ async def bridge_browser(ws, session):
             await asyncio.gather(del_navegador(), hacia_el_navegador())
         except Exception:
             log.info("se cerro la prueba por navegador")
+
+    # la prueba local queda en la misma tabla que las llamadas reales, asi se
+    # puede validar el circuito completo (audio + transcripcion + dashboard)
+    # sin gastar un credito de Twilio
+    call_id = f"local{uuid.uuid4().hex[:7]}"
+    ruta = grab.guardar(call_id)
+    db.x("INSERT INTO calls (id,trip_id,reason,status,transcript,duration_s,cost_usd,"
+         "audio_path,ts) VALUES (?,?,?,?,?,?,?,?,?)",
+         (call_id, session.get("ctx", {}).get("trip_id", "prueba-local"),
+          "prueba_local", "done", "\n".join(dicho), 0.0, 0.0, ruta, time.time()))
+    log.info("prueba local guardada como llamada %s", call_id)
