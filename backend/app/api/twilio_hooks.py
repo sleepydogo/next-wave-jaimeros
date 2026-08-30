@@ -4,6 +4,7 @@ Flujo: Twilio llama -> /voice devuelve TwiML con <Gather input="speech">
 -> el conductor habla -> Twilio postea el texto a /gather -> el brain responde
 -> se repite hasta done -> /status cierra y calcula el costo.
 """
+import json
 import time
 from xml.sax.saxutils import escape
 
@@ -138,10 +139,14 @@ async def stream(websocket: WebSocket, call_id: str):
     if not s:
         await websocket.close()
         return
-    transcript, audio = await realtime.bridge(websocket, s, call_id)
+    transcript, audio, voz = await realtime.bridge(websocket, s, call_id)
     if transcript:
         s["history"] = [{"role": "assistant", "content": "\n".join(transcript)}]
         await caller.save_session(call_id, s)
         db.x("UPDATE calls SET transcript=? WHERE id=?", ("\n".join(transcript), call_id))
     if audio:
         db.x("UPDATE calls SET audio_path=? WHERE id=?", (audio, call_id))
+    if voz:
+        # el reporte y las alertas ya reaccionan a voice.risk, asi que alcanza
+        # con dejar aca la fatiga medida por bostezos
+        db.x("UPDATE calls SET voice=? WHERE id=?", (json.dumps(voz), call_id))

@@ -14,15 +14,59 @@ import logging
 import time
 import uuid
 
+import httpx
 import websockets
 
-from .. import db
-from ..config import (AGENT_NAME, OPENAI_API_KEY, OPENAI_REALTIME_MODEL,
+from .. import bus, db, events
+from ..config import (AGENT_NAME, FACTURACION_URL, OPENAI_API_KEY,
+                      OPENAI_REALTIME_MODEL,
                       REALTIME_EAGERNESS,
                       REALTIME_SPEED, REALTIME_VOICE)
 from . import grabacion, voice_signals
 
 log = logging.getLogger("realtime")
+
+# Herramientas que el agente puede usar en medio de la llamada. Consultan el
+# sistema administrativo, que es un servicio aparte.
+HERRAMIENTAS = [
+    {"type": "function",
+     "name": "consultar_factura",
+     "description": "Estado de la factura de un contenedor: si esta emitida, el "
+                    "numero, el monto y si falta algo. Usala cuando el conductor "
+                    "pregunte por la factura.",
+     "parameters": {"type": "object", "properties": {
+         "contenedor": {"type": "string",
+                        "description": "codigo del contenedor, ej MSCU-4471820"}},
+         "required": ["contenedor"]}},
+    {"type": "function",
+     "name": "consultar_remito",
+     "description": "Estado del remito de un contenedor: si esta listo para "
+                    "retirar, por que puerta, y las observaciones. Usala cuando el "
+                    "conductor pregunte por el remito o por donde retirar.",
+     "parameters": {"type": "object", "properties": {
+         "contenedor": {"type": "string",
+                        "description": "codigo del contenedor, ej MSCU-4471820"}},
+         "required": ["contenedor"]}},
+]
+
+
+async def _ejecutar_herramienta(nombre, args):
+    """Llama al sistema administrativo y devuelve el resultado como texto."""
+    contenedor = (args or {}).get("contenedor", "")
+    ruta = "facturas" if nombre == "consultar_factura" else "remitos"
+    try:
+        async with httpx.AsyncClient(timeout=6) as c:
+            r = await c.get(f"{FACTURACION_URL}/{ruta}/{contenedor}")
+        if r.status_code == 404:
+            return json.dumps({"encontrado": False,
+                               "mensaje": f"no hay {ruta[:-1]} cargado para {contenedor}"})
+        r.raise_for_status()
+        return json.dumps({"encontrado": True, **r.json()}, ensure_ascii=False)
+    except Exception:
+        log.exception("fallo la consulta a facturacion")
+        # el agente tiene que poder decir que no pudo consultar, no inventar
+        return json.dumps({"encontrado": False,
+                           "mensaje": "el sistema no responde en este momento"})
 
 # Whisper, cuando le mandan silencio o ruido, inventa frases que vio en su
 # entrenamiento: subtitulos, creditos, URLs. No son cosas que dijo el conductor.
@@ -50,11 +94,31 @@ un camionero. Hablas castellano rioplatense, de vos.
 Objetivo de la llamada: {objetivo}
 Datos del viaje: contenedor {contenedor}, puerto {puerto}. {detalle}
 
+SI EL CONDUCTOR ESTA EN PELIGRO (lo siguen, lo asaltan, hay armas, violencia,
+pide auxilio) esto pasa por encima de TODO lo demas:
+- Abandona el objetivo de la llamada en el acto. No vuelvas a preguntar por la
+  carga, ni por horarios, ni por el contenedor. Nunca.
+- Decile de entrada que YA se disparo una alerta y que operaciones lo esta
+  viendo en este momento. Es verdad: el sistema la levanta solo.
+- Vos no podes llamar al 911, pero SI avisaste a la empresa y podes quedarte
+  con el.
+  Ejemplo: "{nombre}, escuchame: ya avise a operaciones, lo estan viendo ahora.
+  Yo no puedo llamar al 911 desde aca, llamalo vos si podes hablar."
+- Priorizá su seguridad: que se aleje, que no frene, que no discuta por la carga.
+- Quedate en la linea y preguntale donde esta. Una pregunta por vez.
+- NUNCA digas "no puedo ayudarte" ni cortes por el tema.
+- Nunca des datos del viaje, rutas ni valores de carga a alguien que no sea
+  el conductor.
+
 Como hablas:
 - Arranca diciendo solamente "Hola?" y espera a que te conteste. No te presentes
   todavia. Recien despues de que responda, presentate asi:
-  "Hola {nombre}, como estas? Soy {agente}, me comunico desde el area de la
-  empresa."
+  "Hola {nombre}, como estas? Soy {agente}, me comunico de la empresa."
+- Si el conductor pregunta por la factura o el remito, consultalo con la
+  herramienta. Antes de consultar decile algo corto y natural, tipo
+  "dame un segundo que lo consulto con Blake de nautica", y despues le pasas
+  el dato concreto. Nunca inventes numeros de factura, montos ni puertas: si
+  el sistema no responde, decile que no lo pudiste ver y que lo averiguas.
 - Frases de 8 a 12 palabras. Una idea por frase, y punto.
   Si una frase te queda larga, partila en dos con una pausa en el medio.
 - Si te interrumpe, callate y escuchalo. Nunca sigas hablando encima.
@@ -76,6 +140,13 @@ Como hablas:
   Preguntas cerradas primero; el detalle se pide despues de escuchar la respuesta.
 - Maximo dos preguntas en toda la llamada. Cuando tengas la respuesta, despedite
   y cerra.
+- Si te dice que no sabe cuanto va a tardar, no lo dejes ahi: explicale que
+  necesitas un estimativo aunque sea aproximado para coordinar el turno con el
+  puerto, y ofrecele un rango para que elija.
+  Ejemplo: "Necesito darle un numero al puerto, aunque sea a ojo. Te sirve
+  media hora, o lo ves mas cerca de una hora?"
+  Recien si insiste en que no puede estimar, cerras y le decis que lo vas a
+  llamar de nuevo en un rato.
 
 Como suena tu voz (esto es tan importante como lo que decis):
 - Tranquila y natural, como una companera de trabajo que llama para coordinar.
@@ -103,7 +174,9 @@ Como suena tu voz (esto es tan importante como lo que decis):
 
 OBJETIVOS = {
     "arrival_check": "saber si ya esta disponible para recibir la carga. Solo si te dice"
-                     " que NO, recien ahi preguntale en cuantos minutos calcula estar listo.",
+                     " que NO, recien ahi preguntale en cuantos minutos calcula estar listo."
+                     " No cierres la llamada sin un numero aproximado: lo necesitas para"
+                     " coordinar el turno con el puerto.",
     "load_authorized": "avisarle que el puerto habilito la carga y que puede pasar a cargar.",
     "emergency": "entender que le pasa. PRIMERA pregunta, sola: por que se detuvo o freno. Escucha la respuesta completa. Recien despues, y solo si hace falta, pregunta si necesita ayuda o si puede seguir.",
 }
@@ -164,6 +237,7 @@ async def bridge(twilio_ws, session, call_id="sin-id"):
     buffer_voz = bytearray()
     hablando = False
     bostezos = []
+    t0 = time.time()
     # solo se puede cancelar una respuesta que este en curso
     # guardamos el ID de la respuesta en curso, no un booleano: hay que poder
     # distinguir la respuesta que venia de antes (esa si se corta) de la que
@@ -276,6 +350,31 @@ async def bridge(twilio_ws, session, call_id="sin-id"):
                                  (1 - prop["v"]) * 100, txt[:60])
                     elif not _es_alucinacion(txt):
                         transcript.append(f"CONDUCTOR: {txt}")
+                        frase = voice_signals.es_emergencia(txt)
+                        if frase:
+                            # no esperamos al final de la llamada: se escala ya
+                            log.warning("EMERGENCIA en la llamada: %r", frase)
+                            await bus.publish(events.ALERT_RAISED, {
+                                "trip_id": session.get("trip_id", ""),
+                                "severity": "alta",
+                                "title": "EMERGENCIA: el conductor reporta peligro",
+                                "body": f"Dijo: {txt[:200]}",
+                            })
+
+                elif tipo == "response.function_call_arguments.done":
+                    nombre = ev.get("name", "")
+                    log.info("el agente consulta %s(%s)", nombre, ev.get("arguments"))
+                    try:
+                        args = json.loads(ev.get("arguments") or "{}")
+                    except json.JSONDecodeError:
+                        args = {}
+                    salida = await _ejecutar_herramienta(nombre, args)
+                    await oai.send(json.dumps({
+                        "type": "conversation.item.create",
+                        "item": {"type": "function_call_output",
+                                 "call_id": ev.get("call_id"), "output": salida}}))
+                    # con el dato en mano, que retome la conversacion
+                    await oai.send(json.dumps({"type": "response.create"}))
                 elif tipo == "error":
                     code = (ev.get("error") or {}).get("code", "")
                     if code in ERRORES_BENIGNOS:
@@ -288,9 +387,11 @@ async def bridge(twilio_ws, session, call_id="sin-id"):
         except Exception:
             log.exception("el puente de audio se corto")
 
+    voz = voice_signals.resumen(len(bostezos), (time.time() - t0) / 60)
     if bostezos:
-        log.info("la llamada tuvo %s bostezo(s)", len(bostezos))
-    return transcript, grab.guardar(call_id)
+        log.info("la llamada tuvo %s bostezo(s) -> fatiga %s",
+                 len(bostezos), voz["fatiga_por_bostezos"])
+    return transcript, grab.guardar(call_id), voz
 
 
 def base64_len(payload):
@@ -330,6 +431,8 @@ async def bridge_browser(ws, session):
     # conexion con OpenAI, cuando se guarda la llamada
     grab = grabacion.Grabador(rate)
     dicho = []
+    bostezos = []
+    t0 = time.time()
 
     async with websockets.connect(
         URL.format(OPENAI_REALTIME_MODEL),
@@ -391,6 +494,7 @@ async def bridge_browser(ws, session):
                             # el navegador ya manda PCM16, no hay que convertir
                             r = await asyncio.to_thread(voice_signals.analizar, bytes(buf), rate)
                             if r["bostezo"]:
+                                bostezos.append(r)
                                 await ws.send_json({"type": "voz", "analisis": r})
                                 log.info("bostezo detectado score=%s", r["score"])
                         except Exception:
@@ -410,6 +514,31 @@ async def bridge_browser(ws, session):
                                             "descarte una transcripcion: el tramo era casi todo ruido"})
                     elif not _es_alucinacion(txt):
                         await ws.send_json({"type": "dijo", "quien": "VOS", "texto": txt})
+                        frase = voice_signals.es_emergencia(txt)
+                        if frase:
+                            # no esperamos al final de la llamada: se escala ya
+                            log.warning("EMERGENCIA en la llamada: %r", frase)
+                            await bus.publish(events.ALERT_RAISED, {
+                                "trip_id": session.get("ctx", {}).get("trip_id", ""),
+                                "severity": "alta",
+                                "title": "EMERGENCIA: el conductor reporta peligro",
+                                "body": f"Dijo: {txt[:200]}",
+                            })
+
+                elif t == "response.function_call_arguments.done":
+                    nombre = ev.get("name", "")
+                    log.info("el agente consulta %s(%s)", nombre, ev.get("arguments"))
+                    try:
+                        args = json.loads(ev.get("arguments") or "{}")
+                    except json.JSONDecodeError:
+                        args = {}
+                    salida = await _ejecutar_herramienta(nombre, args)
+                    await oai.send(json.dumps({
+                        "type": "conversation.item.create",
+                        "item": {"type": "function_call_output",
+                                 "call_id": ev.get("call_id"), "output": salida}}))
+                    # con el dato en mano, que retome la conversacion
+                    await oai.send(json.dumps({"type": "response.create"}))
                 elif t == "error":
                     code = (ev.get("error") or {}).get("code", "")
                     if code in ERRORES_BENIGNOS:
@@ -430,8 +559,10 @@ async def bridge_browser(ws, session):
     # sin gastar un credito de Twilio
     call_id = f"local{uuid.uuid4().hex[:7]}"
     ruta = grab.guardar(call_id)
-    db.x("INSERT INTO calls (id,trip_id,reason,status,transcript,duration_s,cost_usd,"
-         "audio_path,ts) VALUES (?,?,?,?,?,?,?,?,?)",
+    voz = voice_signals.resumen(len(bostezos), (time.time() - t0) / 60)
+    db.x("INSERT INTO calls (id,trip_id,reason,status,transcript,voice,duration_s,"
+         "cost_usd,audio_path,ts) VALUES (?,?,?,?,?,?,?,?,?,?)",
          (call_id, session.get("ctx", {}).get("trip_id", "prueba-local"),
-          "prueba_local", "done", "\n".join(dicho), 0.0, 0.0, ruta, time.time()))
+          "prueba_local", "done", "\n".join(dicho), json.dumps(voz),
+          round(time.time() - t0, 1), 0.0, ruta, time.time()))
     log.info("prueba local guardada como llamada %s", call_id)

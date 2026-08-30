@@ -16,6 +16,7 @@ para el bostezo, que vive en frecuencias bajas.
 """
 import audioop
 import logging
+import unicodedata
 import math
 
 import numpy as np
@@ -131,12 +132,25 @@ def analizar(pcm16: bytes, rate: int = 8000) -> dict:
 
 
 def resumen(bostezos: int, minutos: float) -> dict:
-    """Traduce la cuenta de bostezos a una senal de fatiga para el reporte."""
+    """Traduce la cuenta de bostezos a las metricas de voz de la llamada.
+
+    Devuelve las mismas claves que usa el resto del sistema (`risk`, `fatigue`,
+    `notes`), asi el reporte, la alerta de riesgo y el dashboard reaccionan sin
+    ningun cambio: con risk >= 0.6 ya se dispara `alert.raised`.
+    """
     por_minuto = bostezos / max(minutos, 0.1)
     nivel = "alta" if por_minuto >= 2 else "media" if por_minuto >= 1 else "baja"
-    return {"bostezos": bostezos, "por_minuto": round(por_minuto, 2),
-            "fatiga_por_bostezos": nivel,
-            "score": round(min(1.0, por_minuto / 3), 2)}
+    score = round(min(1.0, por_minuto / 2), 2)
+    return {
+        "bostezos": bostezos,
+        "por_minuto": round(por_minuto, 2),
+        "fatiga_por_bostezos": nivel,
+        "fatigue": score,
+        "risk": score,
+        "stress": 0.0,
+        "notes": (f"{bostezos} bostezo(s) en la llamada, fatiga {nivel}"
+                  if bostezos else "sin bostezos detectados"),
+    }
 
 
 def es_ruido(pcm16: bytes, umbral: float) -> bool:
@@ -227,3 +241,40 @@ class PisoDeRuido:
         rms = np.sqrt((fr ** 2).mean(axis=1))
         umbral = max(self.piso * self.factor, self.minimo)
         return float((rms > umbral).mean())
+
+
+# Frases que indican una emergencia de seguridad, no un problema logistico.
+# Ante estas, el objetivo de la llamada deja de importar.
+EMERGENCIA = (
+    "me siguen", "me estan siguiendo", "nos siguen", "me vienen siguiendo",
+    "me quieren robar", "me roban", "robo", "asalto", "me asaltaron",
+    "arma", "pistola", "tiros", "disparos", "balearon",
+    "secuestro", "me llevan", "me bajaron del camion",
+    "me estan matando", "me van a matar", "me pegaron",
+    "policia", "911", "auxilio", "socorro", "emergencia",
+    "estoy en peligro", "tengo miedo", "me amenazan", "me amenazaron",
+    # el que habla no es el conductor, o admite el delito / extorsiona
+    "me robe el camion", "robe el camion", "no soy", "quiero plata",
+    "quiero dolares", "rescate", "si quieren el camion", "pagan o",
+)
+
+
+def _sin_tildes(t: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFD", t.lower())
+                   if unicodedata.category(c) != "Mn")
+
+
+def es_emergencia(texto: str) -> str | None:
+    """Devuelve la frase que disparo la emergencia, o None.
+
+    Compara sin tildes: la transcripcion escribe "policía" y "llamá", y una
+    lista con acentos fallaba justo en el caso mas grave.
+
+    Deliberadamente sensible: en este dominio un falso positivo solo escala a
+    un humano, y un falso negativo deja a un conductor solo en un asalto.
+    """
+    t = _sin_tildes(texto or "")
+    for frase in EMERGENCIA:
+        if _sin_tildes(frase) in t:
+            return frase
+    return None

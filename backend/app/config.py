@@ -24,7 +24,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 #               puede interrumpir. Mas natural y bastante mas caro.
 VOICE_MODE = os.getenv("VOICE_MODE", "gather")
 OPENAI_REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime-2.1-mini")
-REALTIME_VOICE = os.getenv("REALTIME_VOICE", "cedar")
+REALTIME_VOICE = os.getenv("REALTIME_VOICE", "marin")
 AGENT_NAME = os.getenv("AGENT_NAME", "Marina")
 # velocidad de habla: 1.0 es el default, 0.9 suena mas pausado y humano
 REALTIME_SPEED = float(os.getenv("REALTIME_SPEED", "1.25"))
@@ -37,6 +37,13 @@ INTERRUPT_AFTER_S = float(os.getenv("INTERRUPT_AFTER_S", "3.0"))
 NOISE_GATE = float(os.getenv("NOISE_GATE", "0.02"))
 
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
+# sistema administrativo: facturas y remitos
+FACTURACION_URL = os.getenv("FACTURACION_URL", "http://localhost:8100")
+
+# Con 0, el detector guarda los pings pero NO dispara eventos por su cuenta:
+# las alertas salen solo desde los botones de la app. Es lo que se usa en la
+# demo, para que el GPS real del telefono no genere llamadas sorpresa.
+DETECCION_AUTOMATICA = os.getenv("DETECCION_AUTOMATICA", "0") == "1"
 
 SIMULATE_CALLS = os.getenv("SIMULATE_CALLS", "1") == "1"
 SIMULATE_DISPATCH = os.getenv("SIMULATE_DISPATCH", "1") == "1"

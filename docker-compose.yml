@@ -33,6 +33,19 @@ services:
       timeout: 10s
       retries: 20
 
+  # el sistema administrativo de la empresa (facturas y remitos). Servicio
+  # aparte a proposito: el agente lo consulta como consultaria un ERP externo.
+  facturacion:
+    build: ./facturacion
+    ports:
+      - "8100:8100"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request;urllib.request.urlopen('http://localhost:8100/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
   backend:
     build: ./backend
     ports:
@@ -49,9 +62,11 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      FACTURACION_URL: ${FACTURACION_URL:-http://facturacion:8100}
+      DETECCION_AUTOMATICA: ${DETECCION_AUTOMATICA:-0}
       VOICE_MODE: ${VOICE_MODE:-gather}
       OPENAI_REALTIME_MODEL: ${OPENAI_REALTIME_MODEL:-gpt-realtime-2.1}
-      REALTIME_VOICE: ${REALTIME_VOICE:-cedar}
+      REALTIME_VOICE: ${REALTIME_VOICE:-marin}
       AGENT_NAME: ${AGENT_NAME:-Marina}
       REALTIME_SPEED: ${REALTIME_SPEED:-1.25}
       REALTIME_EAGERNESS: ${REALTIME_EAGERNESS:-low}
@@ -77,6 +92,8 @@ services:
       redis:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      facturacion:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c",
