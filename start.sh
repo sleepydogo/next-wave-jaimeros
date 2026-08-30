@@ -93,12 +93,16 @@ echo "==> cargando datos de demo"
 SEED=$(curl -fs -X POST http://localhost:8000/ops/seed)
 TRIP=$(echo "$SEED" | python3 -c "import sys,json;print(json.load(sys.stdin)['trip_id'])")
 
-# un par de posiciones para que el dashboard no arranque vacio
+# Un par de posiciones para que el dashboard no arranque vacio.
+# OJO: las dos quedan FUERA del geofence del puerto (-34.5745,-58.366, radio
+# 800 m) a proposito. Si un ping entra, el detector dispara truck.arrived y el
+# agente llama al conductor: con SIMULATE_CALLS=0 eso es una llamada real y
+# paga, en cada arranque. Para provocar la llegada esta el simulador.
 curl -fs -X POST http://localhost:8000/driver/ping -H 'Content-Type: application/json' \
   -d "{\"trip_id\":\"$TRIP\",\"lat\":-34.60,\"lon\":-58.366,\"speed\":62}" > /dev/null
 sleep 1
 curl -fs -X POST http://localhost:8000/driver/ping -H 'Content-Type: application/json' \
-  -d "{\"trip_id\":\"$TRIP\",\"lat\":-34.5745,\"lon\":-58.366,\"speed\":20}" > /dev/null
+  -d "{\"trip_id\":\"$TRIP\",\"lat\":-34.59,\"lon\":-58.366,\"speed\":58}" > /dev/null
 
 # ── Web (Vite) ────────────────────────────────────────────────────────────────
 
