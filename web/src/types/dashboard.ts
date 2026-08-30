@@ -20,6 +20,9 @@ export interface CallLog {
   costo?: number;
   riesgoVoz?: number;
   ts?: number;
+  /** verde hito, amarillo atencion, rojo emergencia */
+  nivelMapa?: "hito" | "atencion" | "emergencia";
+  evento?: string;
 }
 export interface TripEvent {
   hora: string;

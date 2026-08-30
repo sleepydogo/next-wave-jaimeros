@@ -36,6 +36,7 @@ import {
   Polyline,
   useMap,
 } from "@vis.gl/react-google-maps";
+import { AlertaCritica } from "./AlertaCritica";
 import { DatosProvider, useDatos } from "./useDatos";
 import { LanguageProvider, LanguageSelector } from "./i18n";
 import { ThemeProvider, ThemeToggle } from "./theme";
@@ -181,6 +182,11 @@ function Header() {
     </header>
   );
 }
+function Emergencia() {
+  const { alerts } = useDatos();
+  return <AlertaCritica alerts={alerts} />;
+}
+
 function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="ops-app">
@@ -654,8 +660,17 @@ function RouteMap({ calls, trip }: { calls: CallLog[]; trip: Trip }) {
             {calls.map((c, i) => {
               const pos = c.position ?? truckSpot;
               const isSelected = selected === i;
-              const isAttention = c.level === "attention";
-              const isCritical = c.level === "critical";
+              // El color sale del evento que origino la llamada:
+              // verde hito (llego, carga habilitada), amarillo algo a revisar
+              // (se detuvo, bajo la velocidad), rojo emergencia (fuera de ruta).
+              const nivel = c.nivelMapa ?? (c.level === "critical" ? "emergencia"
+                : c.level === "attention" ? "atencion" : "hito");
+              const isAttention = nivel === "atencion";
+              const isCritical = nivel === "emergencia";
+              const colorPunto =
+                nivel === "emergencia" ? "#C22E2E"
+                : nivel === "atencion" ? "#D97706"
+                : "#16A34A";
 
               return (
                 <AdvancedMarker
@@ -667,7 +682,7 @@ function RouteMap({ calls, trip }: { calls: CallLog[]; trip: Trip }) {
                   <div className="group relative flex cursor-pointer flex-col items-center">
                     {/* Animated Pulse Ring */}
                     <div
-                      className={`absolute -inset-2 rounded-full opacity-35 transition-opacity group-hover:opacity-70 ${isAttention ? "bg-amber-400" : isCritical ? "bg-red-500" : "bg-blue-400"}`}
+                      className={`absolute -inset-2 rounded-full opacity-35 transition-opacity group-hover:opacity-70 ${isCritical ? "bg-red-500" : isAttention ? "bg-amber-400" : "bg-emerald-500"}`}
                     />
 
                     {/* Rich Hover Tooltip */}
@@ -675,7 +690,8 @@ function RouteMap({ calls, trip }: { calls: CallLog[]; trip: Trip }) {
                       <div className="flex flex-col gap-0.5 rounded-lg border border-neutral-800 bg-neutral-950/95 p-2.5 text-white shadow-2xl min-w-[210px]">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
-                            {c.time} hs · {isAttention ? "Atención" : "Normal"}
+                            {c.time} hs ·{" "}
+                            {isCritical ? "Emergencia" : isAttention ? "Atención" : "Hito"}
                           </span>
                           <span className="text-[10px] font-medium text-neutral-400">
                             Clic para hacer zoom
@@ -691,15 +707,8 @@ function RouteMap({ calls, trip }: { calls: CallLog[]; trip: Trip }) {
                     </div>
 
                     <Pin
-                      background={
-                        isCritical
-                          ? "#C22E2E"
-                          : isAttention
-                            ? "#D97706"
-                            : isSelected
-                              ? "#0A5C8C"
-                              : "#67ACFC"
-                      }
+                      background={colorPunto}
+                      scale={isSelected ? 1.4 : 1}
                       borderColor="#fff"
                       glyphColor="#fff"
                     />
@@ -1379,6 +1388,7 @@ export default function App() {
           <DatosProvider>
             <div data-i18n-root>
               <Layout>
+                <Emergencia />
                 <Routes>
                   <Route path="/" element={<OperationsHome />} />
                   <Route path="/pedidos" element={<Orders />} />

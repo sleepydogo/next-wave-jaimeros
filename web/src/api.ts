@@ -165,6 +165,15 @@ function hora(ts: number) {
   });
 }
 
+// Color del punto en el mapa segun que tan grave es lo que paso.
+const COLOR_POR_EVENTO: Record<string, "hito" | "atencion" | "emergencia"> = {
+  "truck.arrived": "hito",         // verde: llego, carga habilitada
+  "port.ready": "hito",
+  "truck.stopped": "atencion",     // amarillo: paro, algo a revisar
+  "truck.slowdown": "atencion",
+  "truck.off_route": "emergencia", // rojo
+};
+
 function mapCall(row: Record<string, unknown>, pos?: { lat: number; lng: number }): CallLog {
   const voice = (row.voice ?? {}) as Record<string, number>;
   const outcome = (row.outcome ?? {}) as Record<string, unknown>;
@@ -213,8 +222,36 @@ export async function getTripDetail(tripId: string): Promise<{
     }, undefined);
     return ping ? { lat: ping.lat, lng: ping.lon } : undefined;
   };
+  // Los eventos traen el lugar EXACTO donde paso la cosa; los pings son solo la
+  // posicion mas cercana en el tiempo. Cuando hay evento, gana el evento, y de
+  // ahi sale tambien el color del punto en el mapa.
+  const eventos = (d.events ?? [])
+    .map((e) => {
+      let p: Record<string, number> = {};
+      try {
+        p = typeof e.payload === "string" ? JSON.parse(e.payload as string) : (e.payload as never);
+      } catch {
+        p = {};
+      }
+      return { tipo: String(e.type), ts: Number(e.ts), lat: p.lat, lon: p.lon };
+    })
+    .filter((e) => e.lat !== undefined && COLOR_POR_EVENTO[e.tipo]);
+
+  const conLugar = (c: CallLog): CallLog => {
+    const cerca = eventos
+      .filter((e) => Math.abs(e.ts - (c.ts ?? 0)) < 300)
+      .sort((a, b) => Math.abs(a.ts - (c.ts ?? 0)) - Math.abs(b.ts - (c.ts ?? 0)))[0];
+    if (!cerca) return c;
+    return {
+      ...c,
+      position: { lat: cerca.lat as number, lng: cerca.lon as number },
+      nivelMapa: COLOR_POR_EVENTO[cerca.tipo],
+      evento: cerca.tipo,
+    };
+  };
+
   return {
-    calls: (d.calls ?? []).map((c) => mapCall(c, positionForCall(Number(c.ts)))),
+    calls: (d.calls ?? []).map((c) => conLugar(mapCall(c, positionForCall(Number(c.ts))))),
     eventos: (d.events ?? []).map((e) => ({
       hora: hora(Number(e.ts)),
       texto: String(e.type),

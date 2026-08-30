@@ -3,6 +3,7 @@ import asyncio
 import logging
 
 from .. import bus, db, events, state
+from ..config import DETECCION_AUTOMATICA
 from . import geocode, rules
 
 log = logging.getLogger("detector")
@@ -38,6 +39,11 @@ async def process_ping(trip_id, ping):
     db.x("INSERT INTO pings (trip_id,lat,lon,speed,ts) VALUES (?,?,?,?,?)",
          (trip_id, ping["lat"], ping["lon"], ping["speed"], ping["ts"]))
     window = await state.get_window(trip_id)
+
+    if not DETECCION_AUTOMATICA:
+        # la posicion se guarda igual (el mapa la usa), pero los eventos los
+        # dispara la app con los botones
+        return
 
     # 1) llegada al puerto
     is_in, dist = rules.arrived(ping, trip)
