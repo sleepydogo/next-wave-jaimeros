@@ -8,15 +8,17 @@ import { TripDetailModal } from "./components/trip-detail-modal";
 
 type TripState = "en_ruta" | "en_puerto" | "resuelto";
 
+// Design System tokens (autonomous-logistics-design-system.md)
 const colors = {
-  background: "#FAFAFA",
-  surface: "#FFFFFF",
-  ink: "#111111",
-  muted: "#6B6B6B",
-  border: "#E5E5E5",
-  accent: "#0A5C8C",
-  success: "#1E8E5A",
-  waiting: "#B87A0A",
+  background: "#F5F5F5",   // --color-surface-muted
+  surface:    "#FFFFFF",   // --color-white
+  ink:        "#231F20",   // --color-ink
+  muted:      "#6B6B6B",   // --color-text-muted
+  border:     "#E8E8E8",   // --color-border
+  primary:    "#0077FC",   // --color-primary
+  primary100: "#E5F1FE",   // --color-primary-100
+  waiting:    "#D97706",   // alert amber
+  error:      "#C22E2E",   // error red
 };
 
 export default function App() {
@@ -98,7 +100,7 @@ export default function App() {
     >
       <View style={styles.header}>
         <View>
-          <Text style={styles.eyebrow}>NEXTWAVE</Text>
+          <Text style={styles.eyebrow}>21AGENTS</Text>
           <Text style={styles.greeting}>Buen viaje, Carlos</Text>
         </View>
         <Pressable
@@ -218,7 +220,7 @@ export default function App() {
           </Text>
         )}
         <Text style={styles.tripId}>
-          VIAJE NW-2048 ·{" "}
+          VIAJE 21A-2048 ·{" "}
           {apiConnected ? "BACKEND CONECTADO" : "BACKEND SIN CONEXIÓN"}
         </Text>
         {error && <Text style={styles.error}>{error}</Text>}
@@ -254,7 +256,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   eyebrow: {
-    color: colors.accent,
+    color: colors.primary,
     fontSize: 11,
     fontWeight: "600",
     letterSpacing: 1.4,
@@ -302,7 +304,7 @@ const styles = StyleSheet.create({
   },
   status: {
     alignItems: "center",
-    backgroundColor: "#FFF6E5",
+    backgroundColor: "#FFF8EC",
     borderRadius: 20,
     flexDirection: "row",
     gap: 6,
@@ -310,7 +312,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   statusSuccess: {
-    backgroundColor: "#E9F6EF",
+    backgroundColor: colors.primary100,
   },
   statusDot: {
     backgroundColor: colors.waiting,
@@ -319,7 +321,7 @@ const styles = StyleSheet.create({
     width: 7,
   },
   statusDotSuccess: {
-    backgroundColor: colors.success,
+    backgroundColor: colors.primary,
   },
   statusText: {
     color: colors.waiting,
@@ -328,7 +330,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   statusTextSuccess: {
-    color: colors.success,
+    color: colors.primary,
   },
   destination: {
     color: colors.ink,
@@ -357,7 +359,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   routeDot: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primary,
     borderColor: colors.surface,
     borderRadius: 6,
     borderWidth: 2,
@@ -388,7 +390,7 @@ const styles = StyleSheet.create({
     width: 34,
   },
   messageMarkSuccess: {
-    backgroundColor: colors.success,
+    backgroundColor: colors.primary,
   },
   messageTitle: {
     color: colors.ink,
@@ -410,9 +412,9 @@ const styles = StyleSheet.create({
   },
   action: {
     alignItems: "center",
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primary,
     borderCurve: "continuous",
-    borderRadius: 12,
+    borderRadius: 999,
     minHeight: 56,
     justifyContent: "center",
     paddingHorizontal: 24,

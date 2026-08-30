@@ -12,13 +12,13 @@ export function Sidebar({ activeSection, onSelectSection }: SidebarProps) {
     <aside className="flex w-56 shrink-0 flex-col border-r border-neutral-200 bg-white px-3 py-5">
       <div className="mb-6 flex items-center gap-2 px-2">
         <div
-          className="flex h-7 w-7 items-center justify-center rounded-md"
+          className="flex h-7 w-7 items-center justify-center rounded-md font-extrabold"
           style={{ backgroundColor: COLOR.accent }}
         >
-          <span className="text-[13px] font-semibold text-white">N</span>
+          <span className="text-[12px] font-black text-white tracking-tight">21</span>
         </div>
-        <span className="text-[15px] font-semibold text-neutral-900">
-          NextWave
+        <span className="text-[15px] font-extrabold text-neutral-900 tracking-tight">
+          21agents
         </span>
       </div>
 

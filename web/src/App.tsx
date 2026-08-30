@@ -4,10 +4,27 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useParams,
 } from "react-router-dom";
-import { ChevronRight, Phone, Play, RotateCcw } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  Bell,
+  ChevronRight,
+  Clock,
+  Filter,
+  Layers,
+  MapPin,
+  Package,
+  Phone,
+  Play,
+  RotateCcw,
+  Search,
+  Truck,
+} from "lucide-react";
 import {
   APIProvider,
   AdvancedMarker,
@@ -17,27 +34,120 @@ import {
   Polyline,
   useMap,
 } from "@vis.gl/react-google-maps";
-import { trips } from "./data/mockData";
-import type { CallLog } from "./types/dashboard";
+import { alerts, trips } from "./data/mockData";
+import type { CallLog, TripState } from "./types/dashboard";
 import "./App.css";
 import "./route.css";
 import "./fix.css";
 
-const labels = {
-  en_ruta: "En ruta",
-  en_puerto: "En puerto",
-  carga_habilitada: "Carga habilitada",
-  emergencia: "Atención requerida",
-};
-function Header() {
+
+
+export function TripStatusBadge({ state }: { state: TripState }) {
+  const isAtencion = state === "atencion" || state === "emergencia";
+  const isCarga = state === "carga_habilitada" || state === "en_puerto";
+  const isFinalizado = state === "finalizado";
+
+  if (isAtencion) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full bg-red-50 text-red-700 border border-red-200 ring-1 ring-red-500/20 shadow-2xs">
+        <span className="relative flex h-2 w-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600" />
+        </span>
+        <AlertTriangle size={13} className="text-red-600 shrink-0" />
+        <span>Atención Requerida</span>
+      </span>
+    );
+  }
+
+  if (isCarga) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
+        <span className="h-2 w-2 rounded-full bg-blue-600 shrink-0" />
+        <span>Carga Habilitada</span>
+      </span>
+    );
+  }
+
+  if (isFinalizado) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full bg-slate-100 text-slate-600 border border-slate-200 shadow-2xs">
+        <span className="h-2 w-2 rounded-full bg-slate-400 shrink-0" />
+        <span>Finalizado</span>
+      </span>
+    );
+  }
+
   return (
-    <header className="topbar">
-      <div className="brand">
-        <span className="brand-mark">NW</span>NextWave Ops
+    <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+      <span className="relative flex h-2 w-2">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600" />
+      </span>
+      <span>En Camino</span>
+    </span>
+  );
+}
+
+function Header() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const isPedidos = location.pathname === "/" || location.pathname.startsWith("/pedidos");
+  const isAlertas = location.pathname.startsWith("/alertas");
+
+  const criticalCount = alerts.filter((a) => a.tipo === "emergencia" || a.tipo === "atencion").length;
+
+  return (
+    <header className="topbar flex items-center justify-between px-4 sm:px-6 py-2.5 bg-[#0B132B] text-white shadow-md border-b border-slate-800">
+      <div className="flex items-center gap-6 sm:gap-8">
+        <div
+          onClick={() => navigate("/")}
+          className="brand flex items-center gap-2 cursor-pointer font-extrabold text-base sm:text-lg tracking-tight hover:opacity-90 transition-opacity select-none"
+        >
+          <span className="brand-mark bg-[#0077FC] text-white px-2 py-0.5 rounded text-xs font-black tracking-tight">21</span>
+          <span className="text-white font-extrabold flex items-center gap-1.5">
+            <span>21agents</span>
+            <span className="text-[10px] font-bold text-blue-400 bg-blue-500/20 px-1.5 py-0.5 rounded border border-blue-400/30 uppercase tracking-wider">Ops</span>
+          </span>
+        </div>
+
+        {/* Links de Navegación Principal */}
+        <nav className="flex items-center gap-1 sm:gap-2">
+          <button
+            onClick={() => navigate("/")}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              isPedidos
+                ? "bg-[#0077FC] text-white shadow-xs"
+                : "text-slate-300 hover:text-white hover:bg-slate-800/60"
+            }`}
+          >
+            <Package size={15} />
+            <span>Pedidos</span>
+          </button>
+
+          <button
+            onClick={() => navigate("/alertas")}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              isAlertas
+                ? "bg-[#0077FC] text-white shadow-xs"
+                : "text-slate-300 hover:text-white hover:bg-slate-800/60"
+            }`}
+          >
+            <Bell size={15} />
+            <span>Alertas</span>
+            {criticalCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.2 text-[10px] font-extrabold rounded-full bg-red-500 text-white animate-pulse">
+                {criticalCount}
+              </span>
+            )}
+          </button>
+        </nav>
       </div>
-      <div className="live">
-        <i />
-        Monitoreo en vivo
+
+      <div className="live flex items-center gap-2 text-xs text-emerald-400 font-semibold">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+        <span className="hidden sm:inline">Monitoreo en vivo</span>
       </div>
     </header>
   );
@@ -80,50 +190,361 @@ function Breadcrumb({
 }
 function Orders() {
   const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("todos");
+
+  // Priorizar viajes que requieren atención
+  const sortedTrips = [...trips].sort((a, b) => {
+    const aAlert = a.estado === "atencion" || a.estado === "emergencia" ? 0 : 1;
+    const bAlert = b.estado === "atencion" || b.estado === "emergencia" ? 0 : 1;
+    return aAlert - bAlert;
+  });
+
+  // Filtro de viajes
+  const filteredTrips = sortedTrips.filter((t) => {
+    if (statusFilter === "en_camino" && !(t.estado === "en_camino" || t.estado === "en_ruta")) return false;
+    if (statusFilter === "carga_habilitada" && !(t.estado === "carga_habilitada" || t.estado === "en_puerto")) return false;
+    if (statusFilter === "atencion" && !(t.estado === "atencion" || t.estado === "emergencia")) return false;
+    if (statusFilter === "finalizado" && t.estado !== "finalizado") return false;
+
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      t.order.toLowerCase().includes(term) ||
+      t.patente.toLowerCase().includes(term) ||
+      t.conductor.toLowerCase().includes(term) ||
+      t.destino.toLowerCase().includes(term) ||
+      (t.origen && t.origen.toLowerCase().includes(term))
+    );
+  });
+
+  // Contadores KPI
+  const totalCount = trips.length;
+  const enCaminoCount = trips.filter((t) => t.estado === "en_camino" || t.estado === "en_ruta").length;
+  const cargaCount = trips.filter((t) => t.estado === "carga_habilitada" || t.estado === "en_puerto").length;
+  const atencionCount = trips.filter((t) => t.estado === "atencion" || t.estado === "emergencia").length;
+  const finalizadoCount = trips.filter((t) => t.estado === "finalizado").length;
+
   return (
-    <main className="page">
-      <p className="eyebrow">Operación de hoy · 29 ago</p>
-      <h1>Pedidos en movimiento</h1>
-      <p className="sub">
-        Seguimiento de cada entrega, su ruta y comunicaciones.
-      </p>
-      <section className="order-table" aria-label="Lista de pedidos">
-        <div className="table-head">
-          <span>Pedido / unidad</span>
-          <span>Transportista</span>
-          <span>Destino actual</span>
-          <span>Llegada</span>
-          <span />
+    <main className="page max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {/* Encabezado */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-neutral-200">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[#0077FC]/10 text-[#0077FC] text-xs font-bold uppercase tracking-wider">
+              <Activity size={13} /> Monitoreo de Voz y Flota
+            </span>
+            <span className="text-xs font-medium text-neutral-500">· 29 ago 2026</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 tracking-tight">
+            Gestión de Pedidos y Alertas en Ruta
+          </h1>
+          <p className="text-sm text-neutral-600 mt-1">
+            Supervisión operativa centralizada: estado de viaje, ruta asignada y resolución prioritaria de incidentes.
+          </p>
         </div>
-        {trips.map((t) => (
+      </div>
+
+      {/* Banner de alerta prioritaria si hay casos que requieren atención */}
+      {atencionCount > 0 && (
+        <div className="flex items-center justify-between p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-900 shadow-xs">
+          <div className="flex items-center gap-2.5 text-xs sm:text-sm font-bold">
+            <span className="flex h-3 w-3 relative shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-600" />
+            </span>
+            <AlertTriangle size={18} className="text-red-600 shrink-0" />
+            <span>Hay {atencionCount} viaje(s) con alerta prioritaria que requieren atención del monitorista</span>
+          </div>
           <button
-            className="order-row"
-            key={t.id}
-            onClick={() => navigate(`/pedidos/${t.id}`)}
+            onClick={() => setStatusFilter("atencion")}
+            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer whitespace-nowrap"
           >
-            <div>
-              <div className="plate">{t.patente}</div>
-              <small className="driver">{t.order}</small>
-            </div>
-            <div className="driver">
-              {t.conductor}
-              <small>{t.phone}</small>
-            </div>
-            <div className="destination">
-              {t.ubicacion}
-              <small>→ {t.destino}</small>
-            </div>
-            <div className="eta">{t.eta}</div>
-            <span
-              className={`status ${t.estado === "emergencia" ? "alert" : ""}`}
-            >
-              {labels[t.estado]}
-            </span>
-            <span className="open-link">
-              Ver pedido <ChevronRight size={15} />
-            </span>
+            Ver alertas ({atencionCount})
           </button>
-        ))}
+        </div>
+      )}
+
+      {/* Tarjetas KPI Resumen */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+        <button
+          onClick={() => setStatusFilter("todos")}
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+            statusFilter === "todos"
+              ? "bg-white border-[#0077FC] shadow-md ring-2 ring-[#0077FC]/20"
+              : "bg-white/80 border-neutral-200 hover:border-neutral-300 hover:bg-white"
+          }`}
+        >
+          <span className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider flex items-center justify-between">
+            Total Pedidos <Layers size={14} className="text-neutral-400" />
+          </span>
+          <span className="text-2xl font-extrabold text-neutral-900 mt-1">{totalCount}</span>
+        </button>
+
+        <button
+          onClick={() => setStatusFilter("atencion")}
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+            statusFilter === "atencion"
+              ? "bg-red-50 border-red-500 shadow-md ring-2 ring-red-500/20"
+              : "bg-white/80 border-neutral-200 hover:border-red-200 hover:bg-red-50/40"
+          }`}
+        >
+          <span className="text-[11px] font-bold text-red-700 uppercase tracking-wider flex items-center justify-between">
+            Atención <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+          </span>
+          <span className="text-2xl font-extrabold text-red-950 mt-1">{atencionCount}</span>
+        </button>
+
+        <button
+          onClick={() => setStatusFilter("en_camino")}
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+            statusFilter === "en_camino"
+              ? "bg-emerald-50 border-emerald-500 shadow-md ring-2 ring-emerald-500/20"
+              : "bg-white/80 border-neutral-200 hover:border-emerald-200 hover:bg-emerald-50/40"
+          }`}
+        >
+          <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center justify-between">
+            En camino <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          </span>
+          <span className="text-2xl font-extrabold text-emerald-950 mt-1">{enCaminoCount}</span>
+        </button>
+
+        <button
+          onClick={() => setStatusFilter("carga_habilitada")}
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+            statusFilter === "carga_habilitada"
+              ? "bg-blue-50 border-blue-500 shadow-md ring-2 ring-blue-500/20"
+              : "bg-white/80 border-neutral-200 hover:border-blue-200 hover:bg-blue-50/40"
+          }`}
+        >
+          <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider flex items-center justify-between">
+            Carga Habilitada <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+          </span>
+          <span className="text-2xl font-extrabold text-blue-950 mt-1">{cargaCount}</span>
+        </button>
+
+        <button
+          onClick={() => setStatusFilter("finalizado")}
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+            statusFilter === "finalizado"
+              ? "bg-slate-100 border-slate-500 shadow-md ring-2 ring-slate-500/20"
+              : "bg-white/80 border-neutral-200 hover:border-slate-300 hover:bg-slate-50"
+          }`}
+        >
+          <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+            Finalizados <span className="w-2.5 h-2.5 rounded-full bg-slate-500" />
+          </span>
+          <span className="text-2xl font-extrabold text-slate-900 mt-1">{finalizadoCount}</span>
+        </button>
+      </div>
+
+      {/* Toolbar: Búsqueda y Filtros */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-neutral-200/80 shadow-xs">
+        {/* Campo de búsqueda */}
+        <div className="relative flex-1 min-w-[240px]">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+          <input
+            type="text"
+            placeholder="Buscar por pedido #, patente, conductor u origen/destino..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0077FC] focus:border-transparent transition-all"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400 hover:text-neutral-700 cursor-pointer"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        {/* Tabs de estado */}
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+          {[
+            { id: "todos", label: "Todos" },
+            { id: "atencion", label: "Atención" },
+            { id: "en_camino", label: "En camino" },
+            { id: "carga_habilitada", label: "Carga habilitada" },
+            { id: "finalizado", label: "Finalizado" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id)}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+                statusFilter === tab.id
+                  ? "bg-[#0077FC] text-white shadow-xs"
+                  : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tabla de Pedidos Refactorizada */}
+      <section className="bg-white border border-neutral-200 rounded-2xl shadow-sm overflow-hidden" aria-label="Lista de pedidos">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[900px]">
+            {/* Encabezados de Columna */}
+            <thead>
+              <tr className="bg-neutral-100/80 border-b border-neutral-200 text-[11px] font-extrabold uppercase tracking-wider text-neutral-600 select-none">
+                <th className="py-3.5 px-5 w-[220px]">
+                  <div className="flex items-center gap-1.5">
+                    <Package size={14} className="text-[#0077FC]" />
+                    <span>Pedido / Unidad</span>
+                  </div>
+                </th>
+                <th className="py-3.5 px-5">
+                  <div className="flex items-center gap-1.5">
+                    <MapPin size={14} className="text-[#0077FC]" />
+                    <span>Ruta Asignada (Origen ➔ Destino)</span>
+                  </div>
+                </th>
+                <th className="py-3.5 px-5 w-[140px]">
+                  <div className="flex items-center gap-1.5">
+                    <Clock size={14} className="text-[#0077FC]" />
+                    <span>ETA Estimada</span>
+                  </div>
+                </th>
+                <th className="py-3.5 px-5 w-[220px]">
+                  <div className="flex items-center gap-1.5">
+                    <Activity size={14} className="text-[#0077FC]" />
+                    <span>Estado / Alerta</span>
+                  </div>
+                </th>
+                <th className="py-3.5 px-5 w-[130px] text-right">
+                  <span>Acción</span>
+                </th>
+              </tr>
+            </thead>
+
+            {/* Cuerpo de Tabla */}
+            <tbody className="divide-y divide-neutral-200/70">
+              {filteredTrips.length > 0 ? (
+                filteredTrips.map((t) => {
+                  const isAttention = t.estado === "atencion" || t.estado === "emergencia";
+                  return (
+                    <tr
+                      key={t.id}
+                      onClick={() => navigate(`/pedidos/${t.id}`)}
+                      className={`group transition-colors cursor-pointer ${
+                        isAttention
+                          ? "bg-red-50/40 hover:bg-red-50/70 border-l-4 border-l-red-500"
+                          : "hover:bg-blue-50/40"
+                      }`}
+                    >
+                      {/* Col 1: Pedido / Unidad */}
+                      <td className="py-4 px-5 align-middle">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200/80 tracking-wide">
+                              {t.order}
+                            </span>
+                            <span className="text-sm font-extrabold text-neutral-900 group-hover:text-[#0077FC] transition-colors">
+                              {t.patente}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-neutral-500 font-medium">
+                            <Truck size={13} className="text-neutral-400 shrink-0" />
+                            <span className="truncate">{t.conductor}</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Col 2: Ruta Asignada (Origen -> Destino) */}
+                      <td className="py-4 px-5 align-middle">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-neutral-700 bg-neutral-100 px-2 py-0.5 rounded border border-neutral-200/80">
+                              {t.origen ?? "Depósito Origen"}
+                            </span>
+                            <ArrowRight size={14} className="text-[#0077FC] shrink-0" />
+                            <span className="text-xs font-extrabold text-neutral-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200/80 text-blue-950">
+                              {t.destino}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-neutral-500 font-medium flex items-center gap-1">
+                            <span className={isAttention ? "text-red-600 font-bold" : "text-amber-600"}>📍</span>
+                            <span className={isAttention ? "font-bold text-red-900 truncate" : "truncate"}>
+                              {t.ubicacion}
+                            </span>
+                            <span className="text-neutral-400">· {t.hace}</span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Col 3: ETA Estimada */}
+                      <td className="py-4 px-5 align-middle">
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1.5 text-sm font-extrabold text-neutral-900 font-mono">
+                            <Clock size={14} className="text-neutral-400" />
+                            <span>{t.eta}</span>
+                          </div>
+                          <span className="text-[11px] font-medium text-neutral-500">
+                            {t.velocidad > 0 ? `${t.velocidad} km/h` : "Detenido"}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Col 4: Estado / Alerta de Viaje */}
+                      <td className="py-4 px-5 align-middle">
+                        <TripStatusBadge state={t.estado} />
+                      </td>
+
+                      {/* Col 5: CTA Para Ir */}
+                      <td className="py-4 px-5 align-middle text-right">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/pedidos/${t.id}`);
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-all group-hover:scale-105 group-hover:shadow-md cursor-pointer ${
+                            isAttention
+                              ? "bg-red-600 hover:bg-red-700 text-white"
+                              : "bg-[#0077FC] hover:bg-[#0055CC] text-white"
+                          }`}
+                        >
+                          <span>{isAttention ? "Atender" : "Ver viaje"}</span>
+                          <ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-neutral-500">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Filter size={28} className="text-neutral-300" />
+                      <p className="text-sm font-semibold">No se encontraron pedidos con ese criterio.</p>
+                      <button
+                        onClick={() => {
+                          setSearchTerm("");
+                          setStatusFilter("todos");
+                        }}
+                        className="mt-2 text-xs font-bold text-[#0077FC] hover:underline cursor-pointer"
+                      >
+                        Limpiar filtros y buscar de nuevo
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer de la tabla */}
+        <div className="px-5 py-3 bg-neutral-50 border-t border-neutral-200 flex items-center justify-between text-xs text-neutral-500">
+          <span>Mostrando <strong>{filteredTrips.length}</strong> de <strong>{trips.length}</strong> pedidos activos</span>
+          <span className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            Monitoreo en vivo · Detección automática de alertas
+          </span>
+        </div>
       </section>
     </main>
   );
@@ -223,7 +644,7 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
                   ⚓ Terminal 3, Puerto La Plata
                 </div>
                 <Pin
-                  background="#0d6b4d"
+                  background="#0077FC"
                   borderColor="#fff"
                   glyphColor="#fff"
                 />
@@ -240,7 +661,7 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
                   🚛 Camión AF 402 KL · En movimiento
                 </div>
                 <Pin
-                  background="#0A5C8C"
+                  background="#231F20"
                   borderColor="#fff"
                   glyphColor="#fff"
                 />
@@ -294,8 +715,8 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
                           : isAttention
                             ? "#D97706"
                             : isSelected
-                              ? "#059669"
-                              : "#0284C7"
+                              ? "#0077FC"
+                              : "#67ACFC"
                       }
                       borderColor="#fff"
                       glyphColor="#fff"
@@ -311,7 +732,7 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
                 ...calls.map((c, i) => c.position ?? spots[i]),
                 destination,
               ]}
-              strokeColor="#0A5C8C"
+              strokeColor="#0077FC"
               strokeOpacity={0.95}
               strokeWeight={5}
             />
@@ -356,7 +777,7 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
                     onClick={() =>
                       navigate(`/pedidos/${tripId}/llamadas/${selectedCall.id}`)
                     }
-                    className="mt-3 flex w-full items-center justify-between rounded-lg bg-[#0d6b4d] px-3 py-2 text-xs font-bold text-white shadow transition-all hover:bg-[#0a563e] hover:shadow-md cursor-pointer"
+                    className="mt-3 flex w-full items-center justify-between rounded-lg bg-[#0077FC] px-3 py-2 text-xs font-bold text-white shadow transition-all hover:bg-[#0055CC] hover:shadow-md cursor-pointer"
                   >
                     <span>Ver log y transcripción completa</span>
                     <ChevronRight size={14} />
@@ -405,13 +826,9 @@ function Detail() {
       <Breadcrumb tripId={trip.id} order={trip.order} />
       <div className="detail-header">
         <p className="eyebrow">{trip.order}</p>
-        <div className="order-title">
+        <div className="order-title flex items-center gap-4">
           <h1>{trip.patente}</h1>
-          <span
-            className={`status ${trip.estado === "emergencia" ? "alert" : ""}`}
-          >
-            {labels[trip.estado]}
-          </span>
+          <TripStatusBadge state={trip.estado} />
         </div>
         <p className="sub">
           {trip.ubicacion} · {trip.hace}
@@ -423,7 +840,7 @@ function Detail() {
           <section className="info-card">
             <header>
               <h2>Transportista</h2>
-              <Phone size={16} color="#0d6b4d" />
+              <Phone size={16} color="#0077FC" />
             </header>
             <div className="contact">
               <div className="avatar">
@@ -561,12 +978,335 @@ function CallDetail() {
     </main>
   );
 }
+function AlertsScreen() {
+  const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [severityFilter, setSeverityFilter] = useState<string>("todas");
+
+  // Ordenar: Alertas de emergencia/atención primero
+  const sortedAlerts = [...alerts].sort((a, b) => {
+    const aOrder = a.tipo === "emergencia" ? 0 : a.tipo === "atencion" ? 1 : 2;
+    const bOrder = b.tipo === "emergencia" ? 0 : b.tipo === "atencion" ? 1 : 2;
+    return aOrder - bOrder;
+  });
+
+  const filteredAlerts = sortedAlerts.filter((a) => {
+    if (severityFilter === "criticas" && a.tipo !== "emergencia") return false;
+    if (severityFilter === "atencion" && a.tipo !== "atencion") return false;
+    if (severityFilter === "resueltas" && a.tipo !== "resuelto") return false;
+
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      a.titulo.toLowerCase().includes(term) ||
+      a.texto.toLowerCase().includes(term) ||
+      a.order.toLowerCase().includes(term) ||
+      a.patente.toLowerCase().includes(term) ||
+      a.conductor.toLowerCase().includes(term) ||
+      a.ubicacion.toLowerCase().includes(term)
+    );
+  });
+
+  const totalCount = alerts.length;
+  const criticalCount = alerts.filter((a) => a.tipo === "emergencia").length;
+  const atencionCount = alerts.filter((a) => a.tipo === "atencion").length;
+  const resueltasCount = alerts.filter((a) => a.tipo === "resuelto").length;
+
+  return (
+    <main className="page max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {/* Encabezado */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-neutral-200">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-red-50 text-red-700 border border-red-200 text-xs font-bold uppercase tracking-wider">
+              <Bell size={13} className="text-red-600 animate-pulse" /> Registro de Incidencias
+            </span>
+            <span className="text-xs font-medium text-neutral-500">· Actualizado en tiempo real</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 tracking-tight">
+            Centro de Alertas Operativas
+          </h1>
+          <p className="text-sm text-neutral-600 mt-1">
+            Historial y estado de alertas detectadas en ruta por el agente de voz y monitoreo de telemetría.
+          </p>
+        </div>
+      </div>
+
+      {/* Tarjetas KPI Resumen */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <button
+          onClick={() => setSeverityFilter("todas")}
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+            severityFilter === "todas"
+              ? "bg-white border-[#0077FC] shadow-md ring-2 ring-[#0077FC]/20"
+              : "bg-white/80 border-neutral-200 hover:border-neutral-300 hover:bg-white"
+          }`}
+        >
+          <span className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider flex items-center justify-between">
+            Total Alertas <Layers size={14} className="text-neutral-400" />
+          </span>
+          <span className="text-2xl font-extrabold text-neutral-900 mt-1">{totalCount}</span>
+        </button>
+
+        <button
+          onClick={() => setSeverityFilter("criticas")}
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+            severityFilter === "criticas"
+              ? "bg-red-50 border-red-500 shadow-md ring-2 ring-red-500/20"
+              : "bg-white/80 border-neutral-200 hover:border-red-200 hover:bg-red-50/40"
+          }`}
+        >
+          <span className="text-[11px] font-bold text-red-700 uppercase tracking-wider flex items-center justify-between">
+            Críticas / Emergencia <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse" />
+          </span>
+          <span className="text-2xl font-extrabold text-red-950 mt-1">{criticalCount}</span>
+        </button>
+
+        <button
+          onClick={() => setSeverityFilter("atencion")}
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+            severityFilter === "atencion"
+              ? "bg-amber-50 border-amber-500 shadow-md ring-2 ring-amber-500/20"
+              : "bg-white/80 border-neutral-200 hover:border-amber-200 hover:bg-amber-50/40"
+          }`}
+        >
+          <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider flex items-center justify-between">
+            En Atención <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+          </span>
+          <span className="text-2xl font-extrabold text-amber-950 mt-1">{atencionCount}</span>
+        </button>
+
+        <button
+          onClick={() => setSeverityFilter("resueltas")}
+          className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+            severityFilter === "resueltas"
+              ? "bg-emerald-50 border-emerald-500 shadow-md ring-2 ring-emerald-500/20"
+              : "bg-white/80 border-neutral-200 hover:border-emerald-200 hover:bg-emerald-50/40"
+          }`}
+        >
+          <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center justify-between">
+            Resueltas <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+          </span>
+          <span className="text-2xl font-extrabold text-emerald-950 mt-1">{resueltasCount}</span>
+        </button>
+      </div>
+
+      {/* Toolbar: Búsqueda y Filtros */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-neutral-200/80 shadow-xs">
+        <div className="relative flex-1 min-w-[240px]">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+          <input
+            type="text"
+            placeholder="Buscar alerta por título, pedido, patente o ubicación..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#0077FC] focus:border-transparent transition-all"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-neutral-400 hover:text-neutral-700 cursor-pointer"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+          {[
+            { id: "todas", label: "Todas" },
+            { id: "criticas", label: "Críticas" },
+            { id: "atencion", label: "Atención" },
+            { id: "resueltas", label: "Resueltas" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setSeverityFilter(tab.id)}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+                severityFilter === tab.id
+                  ? "bg-[#0077FC] text-white shadow-xs"
+                  : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Tabla de Alertas */}
+      <section className="bg-white border border-neutral-200 rounded-2xl shadow-sm overflow-hidden" aria-label="Lista de alertas">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[900px]">
+            <thead>
+              <tr className="bg-neutral-100/80 border-b border-neutral-200 text-[11px] font-extrabold uppercase tracking-wider text-neutral-600 select-none">
+                <th className="py-3.5 px-5">
+                  <div className="flex items-center gap-1.5">
+                    <AlertTriangle size={14} className="text-[#0077FC]" />
+                    <span>Incidencia / Evento</span>
+                  </div>
+                </th>
+                <th className="py-3.5 px-5 w-[200px]">
+                  <div className="flex items-center gap-1.5">
+                    <Truck size={14} className="text-[#0077FC]" />
+                    <span>Unidad / Conductor</span>
+                  </div>
+                </th>
+                <th className="py-3.5 px-5 w-[220px]">
+                  <div className="flex items-center gap-1.5">
+                    <MapPin size={14} className="text-[#0077FC]" />
+                    <span>Ubicación</span>
+                  </div>
+                </th>
+                <th className="py-3.5 px-5 w-[160px]">
+                  <div className="flex items-center gap-1.5">
+                    <Activity size={14} className="text-[#0077FC]" />
+                    <span>Severidad</span>
+                  </div>
+                </th>
+                <th className="py-3.5 px-5 w-[100px]">
+                  <div className="flex items-center gap-1.5">
+                    <Clock size={14} className="text-[#0077FC]" />
+                    <span>Hora</span>
+                  </div>
+                </th>
+                <th className="py-3.5 px-5 w-[130px] text-right">
+                  <span>Acción</span>
+                </th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-neutral-200/70">
+              {filteredAlerts.length > 0 ? (
+                filteredAlerts.map((a) => {
+                  const isCritical = a.tipo === "emergencia";
+                  const isAtencion = a.tipo === "atencion";
+                  return (
+                    <tr
+                      key={a.id}
+                      onClick={() => a.tripId && navigate(`/pedidos/${a.tripId}`)}
+                      className={`group transition-colors cursor-pointer ${
+                        isCritical
+                          ? "bg-red-50/40 hover:bg-red-50/70 border-l-4 border-l-red-600"
+                          : isAtencion
+                          ? "bg-amber-50/30 hover:bg-amber-50/60 border-l-4 border-l-amber-500"
+                          : "hover:bg-blue-50/40"
+                      }`}
+                    >
+                      {/* Incidencia / Detalle */}
+                      <td className="py-4 px-5 align-middle">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-sm text-neutral-900 group-hover:text-[#0077FC] transition-colors">
+                              {a.titulo}
+                            </span>
+                            <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200/80">
+                              {a.order}
+                            </span>
+                          </div>
+                          <p className="text-xs text-neutral-600 line-clamp-2">{a.texto}</p>
+                        </div>
+                      </td>
+
+                      {/* Conductor / Unidad */}
+                      <td className="py-4 px-5 align-middle">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-sm font-extrabold text-neutral-900">{a.patente}</span>
+                          <span className="text-xs text-neutral-500 font-medium">{a.conductor}</span>
+                        </div>
+                      </td>
+
+                      {/* Ubicación */}
+                      <td className="py-4 px-5 align-middle">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-semibold text-neutral-800 flex items-center gap-1">
+                            📍 {a.ubicacion}
+                          </span>
+                          {a.hace && <span className="text-[11px] text-neutral-500">{a.hace}</span>}
+                        </div>
+                      </td>
+
+                      {/* Severidad */}
+                      <td className="py-4 px-5 align-middle">
+                        {isCritical ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full bg-red-50 text-red-700 border border-red-200 shadow-2xs">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600" />
+                            </span>
+                            <span>Crítica</span>
+                          </span>
+                        ) : isAtencion ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
+                            <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+                            <span>Atención</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                            <span className="h-2 w-2 rounded-full bg-emerald-600 shrink-0" />
+                            <span>Resuelta</span>
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Hora */}
+                      <td className="py-4 px-5 align-middle">
+                        <span className="font-mono text-xs font-bold text-neutral-800">{a.hora} hs</span>
+                      </td>
+
+                      {/* CTA */}
+                      <td className="py-4 px-5 align-middle text-right">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (a.tripId) navigate(`/pedidos/${a.tripId}`);
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-all group-hover:scale-105 group-hover:shadow-md cursor-pointer ${
+                            isCritical
+                              ? "bg-red-600 hover:bg-red-700 text-white"
+                              : "bg-[#0077FC] hover:bg-[#0055CC] text-white"
+                          }`}
+                        >
+                          <span>{isCritical ? "Atender" : "Ver pedido"}</span>
+                          <ChevronRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-neutral-500">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Filter size={28} className="text-neutral-300" />
+                      <p className="text-sm font-semibold">No se encontraron alertas para este filtro.</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="px-5 py-3 bg-neutral-50 border-t border-neutral-200 flex items-center justify-between text-xs text-neutral-500">
+          <span>Mostrando <strong>{filteredAlerts.length}</strong> de <strong>{alerts.length}</strong> alertas registradas</span>
+          <span className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            Detección automática por agente de voz y GPS
+          </span>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <Layout>
         <Routes>
           <Route path="/" element={<Orders />} />
+          <Route path="/alertas" element={<AlertsScreen />} />
           <Route path="/pedidos/:tripId" element={<Detail />} />
           <Route
             path="/pedidos/:tripId/llamadas/:callId"

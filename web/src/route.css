@@ -1,95 +1,103 @@
-.map-pin {
-  overflow: visible;
-}
+/* ─── Map pin tooltips ───────────────────────────────────────── */
+.map-pin { overflow: visible; }
+
 .pin-hover {
   position: absolute;
   left: 50%;
   bottom: 42px;
   width: max-content;
-  max-width: 190px;
-  padding: 7px 9px;
-  border-radius: 7px;
-  background: #12201f;
-  color: #fff;
-  font: 500 10px Manrope;
-  line-height: 1.3;
+  max-width: 200px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--color-ink);
+  color: var(--color-white);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
   text-align: left;
   opacity: 0;
   pointer-events: none;
-  transform: rotate(45deg) translateX(-25%);
+  transform: translateX(-25%);
   transition: opacity 0.15s;
-  box-shadow: 0 4px 14px #12201f33;
+  box-shadow: 0 4px 14px rgba(35,31,32,0.22);
 }
+
 .map-pin:hover .pin-hover,
-.map-pin:focus-visible .pin-hover {
-  opacity: 1;
-}
-.map-pin.attention {
-  background: #c57822;
-}
-.map-pin.critical {
-  background: #cc4b3e;
-}
+.map-pin:focus-visible .pin-hover { opacity: 1; }
+
+.map-pin.attention { background: var(--color-alert); }
+.map-pin.critical  { background: var(--color-error); }
+
+/* ─── Map popup card ─────────────────────────────────────────── */
 .map-popup {
   position: absolute;
   z-index: 8;
   width: 255px;
-  padding: 15px;
-  border: 1px solid #dce4df;
+  padding: 14px;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 14px 34px #12201f30;
-  transform: translate(-15px, -calc(100% + 18px));
+  background: var(--color-white);
+  box-shadow: 0 14px 34px rgba(35,31,32,0.14);
   animation: popup-in 0.16s ease-out;
 }
-.map-popup:after {
+
+.map-popup::after {
   content: "";
   position: absolute;
   bottom: -7px;
   left: 28px;
   width: 13px;
   height: 13px;
-  background: #fff;
-  border-right: 1px solid #dce4df;
-  border-bottom: 1px solid #dce4df;
+  background: var(--color-white);
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
   transform: rotate(45deg);
 }
+
 .map-popup strong,
 .map-popup small {
   display: block;
   position: relative;
   z-index: 1;
 }
+
 .map-popup strong {
   margin: 10px 0 3px;
   font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink);
 }
+
 .map-popup small {
-  color: #66716d;
-  font: 500 10px "DM Mono";
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 600;
 }
+
 .map-popup p {
   position: relative;
   z-index: 1;
   margin: 10px 0;
-  color: #44504b;
+  color: var(--color-ink-soft);
   font-size: 11px;
-  line-height: 1.45;
+  line-height: 1.5;
 }
+
 .map-popup button:not(.popup-close) {
   position: relative;
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   padding: 0;
   border: 0;
   background: transparent;
-  color: #0d6b4d;
+  color: var(--color-primary);
   cursor: pointer;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
 }
+
 .popup-close {
   position: absolute;
   z-index: 2;
@@ -101,131 +109,148 @@
   height: 23px;
   border: 0;
   border-radius: 6px;
-  background: #f1f5f2;
-  color: #66716d;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
   cursor: pointer;
+  padding: 0;
 }
+.popup-close:hover { background: var(--color-border); }
+
+/* ─── Call level badge ───────────────────────────────────────── */
 .call-level {
   display: inline-block;
-  padding: 3px 6px;
-  border-radius: 99px;
-  background: #edf5ef;
-  color: #0d6b4d;
-  font: 500 9px "DM Mono";
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--color-primary-100);
+  color: var(--color-primary);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+
 .call-level.attention {
-  background: #fff1e6;
-  color: #a8541d;
+  background: var(--color-alert-bg);
+  color: var(--color-alert-text);
 }
+
 @keyframes popup-in {
-  from {
-    opacity: 0;
-    transform: translate(-15px, -calc(100% + 8px));
-  }
-  to {
-    opacity: 1;
-    transform: translate(-15px, -calc(100% + 18px));
-  }
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ─── Route report section ───────────────────────────────────── */
 .route-report {
-  margin-top: 22px;
-  border: 1px solid #dce4df;
+  margin-top: 20px;
+  border: 1px solid var(--color-border);
   border-radius: 16px;
-  background: #fff;
+  background: var(--color-white);
   overflow: hidden;
 }
+
 .route-report header {
   display: flex;
-  align-items: start;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 23px 24px;
-  border-bottom: 1px solid #dce4df;
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--color-border);
 }
+
 .route-report h2 {
   margin: 0;
-  font-size: 18px;
-  letter-spacing: -0.5px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--color-ink);
 }
+
+/* ─── Route metrics grid ─────────────────────────────────────── */
 .route-metrics {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  border-bottom: 1px solid #dce4df;
+  border-bottom: 1px solid var(--color-border);
 }
+
 .route-metrics div {
-  padding: 18px 20px;
-  border-right: 1px solid #dce4df;
+  padding: 16px 20px;
+  border-right: 1px solid var(--color-border);
 }
-.route-metrics div:last-child {
-  border: 0;
-}
+.route-metrics div:last-child { border: 0; }
+
 .route-metrics small,
 .route-metrics span {
   display: block;
-  color: #66716d;
+  color: var(--color-text-muted);
   font-size: 10px;
 }
+
 .route-metrics small {
-  font: 500 10px "DM Mono";
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+
 .route-metrics strong {
   display: block;
-  margin: 7px 0 3px;
-  font-size: 19px;
-  letter-spacing: -0.7px;
+  margin: 6px 0 3px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: var(--color-ink);
 }
+
+/* ─── Route log ──────────────────────────────────────────────── */
 .route-log {
-  padding: 22px 24px;
+  padding: 20px 24px;
 }
+
 .route-log h3 {
-  margin: 0 0 11px;
+  margin: 0 0 10px;
   font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink);
 }
+
 .route-event {
   display: grid;
   grid-template-columns: 58px 1fr;
   gap: 10px;
-  padding: 12px 0;
-  border-top: 1px solid #edf1ee;
+  padding: 11px 0;
+  border-top: 1px solid var(--color-border);
 }
+
 .route-event time {
-  color: #66716d;
-  font: 500 11px "DM Mono";
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
+
 .route-event strong,
 .route-event span {
   display: block;
   font-size: 12px;
 }
-.route-event span {
-  margin-top: 3px;
-  color: #66716d;
-}
+
+.route-event strong { color: var(--color-ink); font-weight: 700; }
+.route-event span   { margin-top: 3px; color: var(--color-text-muted); }
+
 .route-report footer {
-  padding: 14px 24px;
-  background: #f3f7f4;
-  color: #66716d;
+  padding: 12px 24px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
   font-size: 11px;
 }
+
+/* ─── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 650px) {
   .route-metrics {
     grid-template-columns: repeat(2, 1fr);
   }
-  .route-metrics div:nth-child(2) {
-    border-right: 0;
-  }
-  .route-metrics div:nth-child(-n + 2) {
-    border-bottom: 1px solid #dce4df;
-  }
-  .map-popup {
-    width: 220px;
-  }
-  .route-report header {
-    display: block;
-  }
-  .route-report header .status {
-    margin-top: 10px;
-  }
+  .route-metrics div:nth-child(2) { border-right: 0; }
+  .route-metrics div:nth-child(-n+2) { border-bottom: 1px solid var(--color-border); }
+  .map-popup { width: 220px; }
+  .route-report header { display: block; }
+  .route-report header .status { margin-top: 10px; }
 }
