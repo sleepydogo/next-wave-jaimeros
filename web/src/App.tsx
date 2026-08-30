@@ -40,15 +40,7 @@ import "./App.css";
 import "./route.css";
 import "./fix.css";
 
-const labels: Record<string, string> = {
-  en_camino: "En camino",
-  en_ruta: "En camino",
-  carga_habilitada: "Carga habilitada",
-  en_puerto: "Carga habilitada",
-  atencion: "Atención",
-  emergencia: "Atención",
-  finalizado: "Finalizado",
-};
+
 
 export function TripStatusBadge({ state }: { state: TripState }) {
   const isAtencion = state === "atencion" || state === "emergencia";
@@ -113,8 +105,11 @@ function Header() {
           onClick={() => navigate("/")}
           className="brand flex items-center gap-2 cursor-pointer font-extrabold text-base sm:text-lg tracking-tight hover:opacity-90 transition-opacity select-none"
         >
-          <span className="brand-mark bg-[#0077FC] text-white px-2 py-0.5 rounded text-xs">NW</span>
-          <span className="text-white">NextWave Ops</span>
+          <span className="brand-mark bg-[#0077FC] text-white px-2 py-0.5 rounded text-xs font-black tracking-tight">21</span>
+          <span className="text-white font-extrabold flex items-center gap-1.5">
+            <span>21agents</span>
+            <span className="text-[10px] font-bold text-blue-400 bg-blue-500/20 px-1.5 py-0.5 rounded border border-blue-400/30 uppercase tracking-wider">Ops</span>
+          </span>
         </div>
 
         {/* Links de Navegación Principal */}

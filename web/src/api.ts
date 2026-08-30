@@ -55,6 +55,11 @@ export async function getAlerts(): Promise<Alert[]> {
   const rows = await request<Array<Record<string, unknown>>>("/ops/alerts");
   return rows.map((row) => ({
     id: String(row.id),
+    order: String(row.order_id ?? row.trip_id ?? "ORD-00"),
+    patente: String(row.patente ?? row.container ?? "AF 402 KL"),
+    conductor: String(row.driver_name ?? row.conductor ?? "Conductor"),
+    titulo: String(row.title ?? row.titulo ?? "Alerta Operativa"),
+    ubicacion: String(row.location ?? row.ubicacion ?? "Ruta"),
     tipo:
       row.severity === "alta"
         ? "emergencia"

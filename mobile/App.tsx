@@ -100,7 +100,7 @@ export default function App() {
     >
       <View style={styles.header}>
         <View>
-          <Text style={styles.eyebrow}>NEXTWAVE</Text>
+          <Text style={styles.eyebrow}>21AGENTS</Text>
           <Text style={styles.greeting}>Buen viaje, Carlos</Text>
         </View>
         <Pressable
@@ -220,7 +220,7 @@ export default function App() {
           </Text>
         )}
         <Text style={styles.tripId}>
-          VIAJE NW-2048 ·{" "}
+          VIAJE 21A-2048 ·{" "}
           {apiConnected ? "BACKEND CONECTADO" : "BACKEND SIN CONEXIÓN"}
         </Text>
         {error && <Text style={styles.error}>{error}</Text>}
