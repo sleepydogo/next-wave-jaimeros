@@ -30,12 +30,12 @@ export function OperationsPulse({ points, locale }: OperationsPulseProps) {
     ? {
         title: "Agent activity",
         live: "Current shift",
-        description: "Mock activity trace for agent calls during the current shift.",
+        description: "Live trace of backend agent calls during the current shift.",
       }
     : {
         title: "Actividad del agente",
         live: "Turno actual",
-        description: "Traza mock de llamadas del agente durante el turno actual.",
+        description: "Traza en vivo de llamadas del backend durante el turno actual.",
       };
 
   return (

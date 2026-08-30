@@ -40,7 +40,7 @@ import { DatosProvider, useDatos } from "./useDatos";
 import { LanguageProvider, LanguageSelector } from "./i18n";
 import { ThemeProvider, ThemeToggle } from "./theme";
 import { OperationsHome } from "./components/dashboard/OperationsHome";
-import type { CallLog, TripState } from "./types/dashboard";
+import type { CallLog, Trip, TripState } from "./types/dashboard";
 import "./App.css";
 import "./route.css";
 import "./fix.css";
@@ -92,7 +92,7 @@ export function TripStatusBadge({ state }: { state: TripState }) {
 }
 
 function Header() {
-  const { alerts } = useDatos();
+  const { alerts, cargando, error } = useDatos();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -100,6 +100,11 @@ function Header() {
   const isPedidos = location.pathname.startsWith("/pedidos");
   const isAlertas = location.pathname.startsWith("/alertas");
   const criticalCount = alerts.filter((alert) => alert.tipo === "emergencia").length;
+  const connectionLabel = error
+    ? "Backend sin conexión"
+    : cargando
+      ? "Conectando backend"
+      : "Monitoreo en vivo";
 
   return (
     <header className="topbar">
@@ -156,7 +161,13 @@ function Header() {
       </div>
 
       <div className="topbar__utilities">
-        <span className="live"><i aria-hidden="true" /><span>Monitoreo en vivo</span></span>
+        <span
+          className={`live ${error ? "live--error" : cargando ? "live--loading" : ""}`}
+          title={error ?? undefined}
+        >
+          <i aria-hidden="true" />
+          <span>{connectionLabel}</span>
+        </span>
         <ThemeToggle />
         <LanguageSelector />
       </div>
@@ -248,7 +259,7 @@ function Orders() {
             Supervisión operativa centralizada: estado de viaje, ruta asignada y resolución prioritaria de incidentes.
           </p>
         </div>
-        <span className="ops-page-meta">5 unidades · actualización en vivo</span>
+        <span className="ops-page-meta">{totalCount} unidades · actualización en vivo</span>
       </header>
 
       {/* Banner de alerta prioritaria si hay casos que requieren atención */}
@@ -533,22 +544,24 @@ function MapCameraController({
   return null;
 }
 
-function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
+function RouteMap({ calls, trip }: { calls: CallLog[]; trip: Trip }) {
   const [selected, setSelected] = useState<number | null>(null);
   const navigate = useNavigate();
-  const defaultCenter = { lat: -34.595, lng: -58.42 };
-  const spots = [
-    { lat: -34.61, lng: -58.43 },
-    { lat: -34.59, lng: -58.4 },
-    { lat: -34.575, lng: -58.366 },
-  ];
-  const destination = { lat: -34.5745, lng: -58.366 };
-  const truckSpot = { lat: -34.62, lng: -58.48 };
+  const fallbackPosition = { lat: -34.6037, lng: -58.3816 };
+  const truckSpot =
+    trip.lat !== undefined && trip.lon !== undefined
+      ? { lat: trip.lat, lng: trip.lon }
+      : trip.ruta?.[0] ?? fallbackPosition;
+  const destination = trip.ruta?.[trip.ruta.length - 1] ?? truckSpot;
+  const defaultCenter = {
+    lat: (truckSpot.lat + destination.lat) / 2,
+    lng: (truckSpot.lng + destination.lng) / 2,
+  };
 
   const selectedCall = selected !== null ? calls[selected] : null;
   const selectedPos =
     selectedCall?.position ??
-    (selected !== null ? (spots[selected] ?? null) : null);
+    (selected !== null ? truckSpot : null);
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const mapId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
@@ -576,7 +589,7 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
             </button>
           ) : (
             <span className="text-xs font-medium text-neutral-500 tabular-nums">
-              24,8 km · 42 min
+              {trip.eta}
             </span>
           )}
         </div>
@@ -599,11 +612,11 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
             {/* Destination Marker */}
             <AdvancedMarker
               position={destination}
-              title="Puerto destino (Terminal 3)"
+              title={trip.destino}
             >
               <div className="group relative cursor-pointer flex flex-col items-center">
                 <div className="pointer-events-none absolute -top-10 z-30 opacity-0 transition-opacity group-hover:opacity-100 whitespace-nowrap rounded-lg bg-neutral-900 px-2.5 py-1 text-xs font-medium text-white shadow-xl">
-                  <MapPin size={12} /> Terminal 3, Puerto La Plata
+                  <MapPin size={12} /> {trip.destino}
                 </div>
                 <Pin
                   background="#0A5C8C"
@@ -616,11 +629,11 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
             {/* Truck Marker */}
             <AdvancedMarker
               position={truckSpot}
-              title="Ubicación del camión (AF 402 KL)"
+              title={`Ubicación del camión (${trip.patente})`}
             >
               <div className="group relative cursor-pointer flex flex-col items-center">
                 <div className="pointer-events-none absolute -top-10 z-30 opacity-0 transition-opacity group-hover:opacity-100 whitespace-nowrap rounded-lg bg-neutral-900 px-2.5 py-1 text-xs font-medium text-white shadow-xl">
-                  <Truck size={12} /> Camión AF 402 KL · En movimiento
+                  <Truck size={12} /> {trip.patente} · {trip.velocidad > 0 ? `${trip.velocidad} km/h` : "Detenido"}
                 </div>
                 <Pin
                   background="#231F20"
@@ -632,7 +645,7 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
 
             {/* Call Markers with Pulse Aura & Hover Tooltips */}
             {calls.map((c, i) => {
-              const pos = c.position ?? spots[i] ?? spots[spots.length - 1];
+              const pos = c.position ?? truckSpot;
               const isSelected = selected === i;
               const isAttention = c.level === "attention";
               const isCritical = c.level === "critical";
@@ -691,7 +704,7 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
             <Polyline
               path={[
                 truckSpot,
-                ...calls.map((c, i) => c.position ?? spots[i]),
+                ...calls.map((c) => c.position ?? truckSpot),
                 destination,
               ]}
               strokeColor="#0A5C8C"
@@ -737,7 +750,7 @@ function RouteMap({ calls, tripId }: { calls: CallLog[]; tripId: string }) {
 
                   <button
                     onClick={() =>
-                      navigate(`/pedidos/${tripId}/llamadas/${selectedCall.id}`)
+                      navigate(`/pedidos/${trip.id}/llamadas/${selectedCall.id}`)
                     }
                     className="ops-button ops-button--primary ops-button--small mt-3 w-full justify-between"
                   >
@@ -799,7 +812,7 @@ function Detail() {
         </div>
       </div>
       <div className="detail-layout">
-        <RouteMap calls={trip.calls} tripId={trip.id} />
+        <RouteMap calls={trip.calls} trip={trip} />
         <aside className="side-column">
           <section className="info-card ops-panel">
             <header>
@@ -857,12 +870,23 @@ function CallDetail() {
   const trip = trips.find((t) => t.id === tripId);
   const call = trip?.calls.find((c) => c.id === callId);
   if (!trip || !call) return <NotFound />;
-  const route = [
-    ["08:12", "Depósito Dock Sud", "Salida confirmada · odómetro 18.442 km"],
-    ["08:42", "Av. 9 de Julio", "Llamada 1 · retiro confirmado"],
-    ["09:28", "Acceso Sudeste", "Llamada 2 · congestión detectada"],
-    ["10:06", "Terminal 3", "Llamada 3 · arribo y espera de acceso"],
-  ];
+  const route = trip.eventos.map((event) => ({
+    time: event.hora,
+    place: trip.ubicacion,
+    detail: event.texto,
+  }));
+  const position =
+    trip.lat !== undefined && trip.lon !== undefined
+      ? `${trip.lat.toFixed(4)}, ${trip.lon.toFixed(4)}`
+      : "Sin posición";
+  const stateLabel =
+    trip.estado === "finalizado"
+      ? "Finalizado"
+      : trip.estado === "carga_habilitada" || trip.estado === "en_puerto"
+        ? "Carga habilitada"
+        : trip.estado === "atencion" || trip.estado === "emergencia"
+          ? "Atención"
+          : "En camino";
   return (
     <main className="page call-page ops-workspace ops-record-page">
       <Breadcrumb
@@ -914,45 +938,46 @@ function CallDetail() {
           <div>
             <h2>Ruta y telemetría del pedido</h2>
           </div>
-          <span className="status">En ruta planificada</span>
+          <TripStatusBadge state={trip.estado} />
         </header>
         <div className="route-metrics">
           <div>
-            <small>Distancia planificada</small>
-            <strong>24,8 km</strong>
-            <span>24,1 km recorridos</span>
+            <small>Estado del viaje</small>
+            <strong>{stateLabel}</strong>
+            <span>{trip.order}</span>
           </div>
           <div>
-            <small>Tiempo estimado</small>
-            <strong>42 min</strong>
-            <span>+ 8 min por congestión</span>
+            <small>ETA estimada</small>
+            <strong>{trip.eta}</strong>
+            <span>{trip.destino}</span>
           </div>
           <div>
-            <small>Velocidad media</small>
-            <strong>54 km/h</strong>
-            <span>Máxima: 78 km/h</span>
+            <small>Velocidad actual</small>
+            <strong>{trip.velocidad > 0 ? `${trip.velocidad} km/h` : "Detenido"}</strong>
+            <span>{trip.hace}</span>
           </div>
           <div>
-            <small>Precisión GPS</small>
-            <strong>± 6 m</strong>
-            <span>Último ping 10:08:14</span>
+            <small>Última posición</small>
+            <strong>{position}</strong>
+            <span>{trip.ubicacion}</span>
           </div>
         </div>
         <div className="route-log">
           <h3>Hitos de la ruta</h3>
-          {route.map(([time, place, detail]) => (
-            <div className="route-event" key={time}>
-              <time>{time}</time>
+          {route.length === 0 ? (
+            <p className="sub">Sin hitos registrados para este traslado.</p>
+          ) : route.map((event, index) => (
+            <div className="route-event" key={`${event.time}-${index}`}>
+              <time>{event.time}</time>
               <div>
-                <strong>{place}</strong>
-                <span>{detail}</span>
+                <strong>{event.place}</strong>
+                <span>{event.detail}</span>
               </div>
             </div>
           ))}
         </div>
         <footer>
-          Ruta sugerida: Autopista Buenos Aires–La Plata · Fuente: GPS de
-          unidad, geocercas y registro de llamadas.
+          Fuente: backend operativo, telemetría GPS y registro de llamadas.
         </footer>
       </section>
       </div>

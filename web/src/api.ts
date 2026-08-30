@@ -1,6 +1,8 @@
 import type { Alert, Call, CallLog, Trip, TripState } from "./types/dashboard";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const API_URL = (
+  import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "")
+).replace(/\/$/, "");
 
 export interface Metrics {
   costo_agente_usd: number;
@@ -24,13 +26,25 @@ const stateMap: Record<string, TripState> = {
   en_puerto: "en_puerto",
   esperando_puerto: "en_puerto",
   habilitado: "carga_habilitada",
-  cerrado: "carga_habilitada",
+  cargando: "carga_habilitada",
+  cerrado: "finalizado",
 };
 
 export async function getTrips(): Promise<Trip[]> {
   const rows = await request<Array<Record<string, unknown>>>("/ops/trips");
   return rows.map((row) => {
     const ping = row.last_ping as Record<string, number> | null;
+    const portLat = Number(row.port_lat);
+    const portLon = Number(row.port_lon);
+    const hasPortPosition = Number.isFinite(portLat) && Number.isFinite(portLon);
+    const hasTruckPosition = Boolean(
+      ping && Number.isFinite(ping.lat) && Number.isFinite(ping.lon),
+    );
+    const truckPosition = hasTruckPosition ? { lat: ping!.lat, lng: ping!.lon } : undefined;
+    const portPosition = hasPortPosition ? { lat: portLat, lng: portLon } : undefined;
+    const routePositions = [truckPosition, portPosition].filter(
+      (position): position is { lat: number; lng: number } => Boolean(position),
+    );
     return {
       id: String(row.id),
       patente: String(row.container),
@@ -38,13 +52,14 @@ export async function getTrips(): Promise<Trip[]> {
       estado: stateMap[String(row.status)] ?? "en_ruta",
       ubicacion: String(row.port_name),
       order: String(row.order_id ?? row.id),
-      phone: String(row.driver_phone ?? "Sin teléfono"),
+      phone: String(row.phone ?? row.driver_phone ?? "Sin teléfono"),
       destino: String(row.destination ?? row.port_name),
       eta: String(row.eta ?? "Sin ETA"),
       hace: ping ? "posición reciente" : "sin posición",
       velocidad: ping?.speed ?? 0,
       lat: ping?.lat,
       lon: ping?.lon,
+      ruta: routePositions.length > 0 ? routePositions : undefined,
       eventos: [],
       calls: [],
     };
@@ -53,30 +68,46 @@ export async function getTrips(): Promise<Trip[]> {
 
 export async function getAlerts(): Promise<Alert[]> {
   const rows = await request<Array<Record<string, unknown>>>("/ops/alerts");
-  return rows.map((row) => ({
-    id: String(row.id),
-    // sin tripId el boton "Atender" no puede navegar a ningun lado
-    tripId: row.trip_id ? String(row.trip_id) : undefined,
-    order: String(row.trip_id ?? "ORD-00"),
-    patente: String(row.patente ?? row.container ?? "—"),
-    conductor: String(row.driver_name ?? row.conductor ?? "Conductor"),
-    titulo: String(row.title ?? "Alerta operativa"),
-    ubicacion: String(row.location ?? row.ubicacion ?? "Ruta"),
-    tipo:
-      row.severity === "alta"
-        ? "emergencia"
-        : row.severity === "baja"
-          ? "resuelto"
-          : "atencion",
-    // el backend manda el detalle en `body`, no en `text`
-    texto: String(row.body ?? row.text ?? ""),
-    canales: String(row.channels ?? ""),
-    ts: Number(row.ts),
-    hora: new Date(Number(row.ts) * 1000).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-  }));
+  return rows.map((row) => {
+    const ts = Number(row.ts);
+    const time = Number.isFinite(ts) ? hora(ts) : "—";
+    return {
+      id: String(row.id),
+      tripId: row.trip_id ? String(row.trip_id) : undefined,
+      order: String(row.trip_id ?? "—"),
+      patente: String(row.patente ?? row.container ?? "—"),
+      conductor: String(row.driver_name ?? row.conductor ?? "—"),
+      titulo: String(row.title ?? "Alerta operativa"),
+      ubicacion: String(row.location ?? row.ubicacion ?? ""),
+      tipo:
+        row.severity === "alta"
+          ? "emergencia"
+          : row.severity === "baja"
+            ? "resuelto"
+            : "atencion",
+      texto: String(row.body ?? row.text ?? ""),
+      canales: String(row.channels ?? ""),
+      ts,
+      hora: time,
+      hace: time,
+    };
+  });
+}
+
+/** Completa las alertas con los datos del viaje que el endpoint no repite. */
+export function hydrateAlerts(alerts: Alert[], trips: Trip[]): Alert[] {
+  const tripsById = new Map(trips.map((trip) => [trip.id, trip]));
+  return alerts.map((alert) => {
+    const trip = alert.tripId ? tripsById.get(alert.tripId) : undefined;
+    if (!trip) return alert;
+    return {
+      ...alert,
+      order: trip.order,
+      patente: trip.patente,
+      conductor: trip.conductor,
+      ubicacion: alert.ubicacion || trip.ubicacion,
+    };
+  });
 }
 
 export async function getCalls(): Promise<Call[]> {
@@ -175,10 +206,15 @@ export async function getTripDetail(tripId: string): Promise<{
     calls: Array<Record<string, unknown>>;
   }>(`/ops/trips/${tripId}`);
 
-  const ultimo = d.pings?.[0];
-  const pos = ultimo ? { lat: ultimo.lat, lng: ultimo.lon } : undefined;
+  const positionForCall = (callTs: number) => {
+    const ping = (d.pings ?? []).reduce<Record<string, number> | undefined>((nearest, candidate) => {
+      if (!nearest) return candidate;
+      return Math.abs(candidate.ts - callTs) < Math.abs(nearest.ts - callTs) ? candidate : nearest;
+    }, undefined);
+    return ping ? { lat: ping.lat, lng: ping.lon } : undefined;
+  };
   return {
-    calls: (d.calls ?? []).map((c) => mapCall(c, pos)),
+    calls: (d.calls ?? []).map((c) => mapCall(c, positionForCall(Number(c.ts)))),
     eventos: (d.events ?? []).map((e) => ({
       hora: hora(Number(e.ts)),
       texto: String(e.type),

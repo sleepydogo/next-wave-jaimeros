@@ -63,6 +63,19 @@ button { font: inherit; }
   box-shadow: 0 0 0 4px var(--color-primary-100);
 }
 
+.live--loading i {
+  background: var(--color-accent);
+}
+
+.live--error {
+  color: var(--color-critical);
+}
+
+.live--error i {
+  background: var(--color-critical);
+  animation: none;
+}
+
 /* ─── Language selector ─────────────────────────────────────── */
 .language-selector {
   display: inline-flex;

@@ -1,12 +1,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
-import { getAlerts, getTripsConLlamadas } from "./api";
-import { alerts as mockAlerts, trips as mockTrips } from "./data/mockData";
+import { getAlerts, getMetrics, getTripsConLlamadas, hydrateAlerts } from "./api";
+import type { Metrics } from "./api";
 import type { Alert, Trip } from "./types/dashboard";
-
-// The prototype is intentionally local-first while the visual design is in
-// progress. Set VITE_DATA_SOURCE=api when it is time to reconnect the backend.
-const USE_MOCK_DATA = import.meta.env.VITE_DATA_SOURCE !== "api";
 
 /** Datos vivos del backend, refrescados solos.
  *
@@ -17,11 +13,18 @@ const USE_MOCK_DATA = import.meta.env.VITE_DATA_SOURCE !== "api";
 interface Datos {
   trips: Trip[];
   alerts: Alert[];
+  metrics: Metrics | null;
   cargando: boolean;
   error: string | null;
 }
 
-const Ctx = createContext<Datos>({ trips: [], alerts: [], cargando: true, error: null });
+const Ctx = createContext<Datos>({
+  trips: [],
+  alerts: [],
+  metrics: null,
+  cargando: true,
+  error: null,
+});
 
 export const useDatos = () => useContext(Ctx);
 
@@ -33,22 +36,24 @@ export function DatosProvider({
   cada?: number;
 }) {
   const [datos, setDatos] = useState<Datos>({
-    trips: USE_MOCK_DATA ? mockTrips : [],
-    alerts: USE_MOCK_DATA ? mockAlerts : [],
-    cargando: !USE_MOCK_DATA,
+    trips: [],
+    alerts: [],
+    metrics: null,
+    cargando: true,
     error: null,
   });
 
   useEffect(() => {
-    if (USE_MOCK_DATA) {
-      return;
-    }
-
     let vivo = true;
     const traer = async () => {
       try {
-        const [trips, alerts] = await Promise.all([getTripsConLlamadas(), getAlerts()]);
-        if (vivo) setDatos({ trips, alerts, cargando: false, error: null });
+        const [trips, rawAlerts, metrics] = await Promise.all([
+          getTripsConLlamadas(),
+          getAlerts(),
+          getMetrics(),
+        ]);
+        const alerts = hydrateAlerts(rawAlerts, trips);
+        if (vivo) setDatos({ trips, alerts, metrics, cargando: false, error: null });
       } catch (e) {
         // no vaciamos lo que ya se estaba mostrando: si el backend parpadea,
         // el monitorista sigue viendo la ultima foto buena

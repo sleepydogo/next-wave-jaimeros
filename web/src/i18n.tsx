@@ -24,6 +24,8 @@ const english: Record<string, string> = {
   Pedidos: "Orders",
   Alertas: "Alerts",
   "Monitoreo en vivo": "Live monitoring",
+  "Conectando backend": "Connecting to backend",
+  "Backend sin conexión": "Backend unavailable",
   "Ir al inicio": "Go to overview",
   "Activar modo día": "Switch to light mode",
   "Activar modo noche": "Switch to dark mode",
@@ -36,6 +38,7 @@ const english: Record<string, string> = {
   "Supervisión operativa centralizada: estado de viaje, ruta asignada y resolución prioritaria de incidentes.":
     "Centralized operations monitoring: trip status, assigned route, and prioritized incident response.",
   "5 unidades · actualización en vivo": "5 units · live updates",
+  "unidades · actualización en vivo": "units · live updates",
   "Prioridad por impacto · actualización en vivo": "Impact-first priority · live updates",
   "Hay {count} viaje(s) con alerta prioritaria que requieren atención del monitorista":
     "{count} trip(s) have a priority alert requiring operator attention",
@@ -112,6 +115,13 @@ const english: Record<string, string> = {
   "No hay transcripción disponible.": "No transcript available.",
   "Contexto operativo": "Operational context",
   "Ruta y telemetría del pedido": "Order route & telemetry",
+  "Estado del viaje": "Trip status",
+  "Velocidad actual": "Current speed",
+  "Última posición": "Last position",
+  "Sin posición": "No position",
+  "Sin hitos registrados para este traslado.": "No milestones have been recorded for this transfer.",
+  "Fuente: backend operativo, telemetría GPS y registro de llamadas.":
+    "Source: operations backend, GPS telemetry, and call log.",
   "En ruta planificada": "On planned route",
   "Distancia planificada": "Planned distance",
   "24,1 km recorridos": "24.1 km covered",

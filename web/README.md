@@ -23,3 +23,8 @@ GET  /ops/thresholds                thresholds actuales del detector
 POST /ops/trips/{id}/port-ready     habilitar la carga
 POST /ops/thresholds/tune           correr el cron agent a mano
 ```
+
+El frontend consume siempre estos endpoints; ya no usa el dataset mock como
+fallback. Para apuntarlo a otro ambiente, copiar `.env.example` a `.env.local`
+y cambiar `VITE_API_URL`. En Vercel, configurar la misma variable con la URL
+pública del backend.

@@ -5,17 +5,17 @@ import { useLanguage } from "../../i18n";
 import { OperationsPulse } from "./OperationsPulse";
 
 export function OperationsHome() {
-  const { trips, alerts } = useDatos();
+  const { trips, alerts, metrics } = useDatos();
   const { locale } = useLanguage();
   const isEnglish = locale === "en";
   const activeTrips = trips.filter((trip) => trip.estado !== "finalizado");
   const completedTrips = trips.filter((trip) => trip.estado === "finalizado");
   const criticalAlerts = alerts.filter((alert) => alert.tipo === "emergencia");
-  const agentCalls = trips.reduce((total, trip) => total + trip.calls.length, 0);
+  const agentCalls = metrics?.llamadas ?? trips.reduce((total, trip) => total + trip.calls.length, 0);
   const activityPoints = trips
     .flatMap((trip) => trip.calls.map((call) => ({ time: call.time, level: call.level })))
     .sort((a, b) => a.time.localeCompare(b.time));
-  const timeSavedMinutes = agentCalls * 12 + completedTrips.length * 18;
+  const timeSavedMinutes = agentCalls * 6;
   const primaryAlert = criticalAlerts[0];
   const formatMetric = (value: number, suffix = "") =>
     `${new Intl.NumberFormat(locale).format(value)}${suffix}`;
@@ -35,12 +35,12 @@ export function OperationsHome() {
         activeTransfers: `${activeTrips.length} in progress · route, ETA and activity`,
         openTransfers: "Open transfers",
         metrics: "Agent metrics",
-        demo: "Mock estimates",
+        demo: "Live backend",
         saved: "Time saved",
         resolved: "Orders resolved",
         calls: "Agent calls",
         escalations: "Critical escalations",
-        tooltip: "Mock estimate: 12 min per call and 18 min per completed transfer",
+        tooltip: "Estimate based on live backend events: 6 minutes of operator work per completed call",
       }
     : {
         title: criticalAlerts.length === 0
@@ -57,12 +57,12 @@ export function OperationsHome() {
         activeTransfers: `${activeTrips.length} en curso · recorrido, ETA y actividad`,
         openTransfers: "Abrir traslados",
         metrics: "Métricas del agente",
-        demo: "Estimaciones mock",
+        demo: "Backend en vivo",
         saved: "Tiempo ahorrado",
         resolved: "Pedidos solucionados",
         calls: "Llamadas del agente",
         escalations: "Derivaciones críticas",
-        tooltip: "Estimación mock: 12 min por llamada y 18 min por traslado finalizado",
+        tooltip: "Estimación sobre eventos reales del backend: 6 minutos de trabajo operativo por llamada completada",
       };
 
   return (
